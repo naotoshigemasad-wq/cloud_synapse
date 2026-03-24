@@ -21,12 +21,12 @@ async function gasGet(path: string, opts: ApiOptions = {}) {
 }
 
 async function gasPost(path: string, opts: ApiOptions = {}) {
-  const body = { ...opts.body, token: opts.token }
+  const body = { ...opts.body, token: opts.token, path }
   const params = new URLSearchParams({ path })
 
   const res = await fetch(`${GAS_URL}?${params.toString()}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify(body),
   })
   if (!res.ok) throw new Error(`API error: ${res.status}`)
