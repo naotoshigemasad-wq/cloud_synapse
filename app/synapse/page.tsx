@@ -88,7 +88,7 @@ function SynapseInner() {
         cv2.width = 420; cv2.height = 110
         const ctx = cv2.getContext('2d')!
         ctx.clearRect(0,0,420,110)
-        const fs = Math.min(46, Math.floor(420*.74/[...kw.text].length))
+        const fs = Math.min(46, Math.floor(420*.74/kw.text.length))
         ctx.font = `700 ${fs}px "Noto Sans JP",sans-serif`
         ctx.textBaseline = 'middle'; ctx.textAlign = 'center'
         ctx.globalAlpha = 0.85
