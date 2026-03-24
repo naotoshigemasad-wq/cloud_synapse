@@ -46,9 +46,9 @@ export const authOptions: NextAuthOptions = {
         }
 
         // Google の OAuth トークンも保持（YouTube/Docs/Calendar用）
-        token.googleAccessToken  = account.access_token
-        token.googleRefreshToken = account.refresh_token
-        token.googleExpiresAt    = account.expires_at
+        token.googleAccessToken  = account.access_token  ?? ''
+        token.googleRefreshToken = account.refresh_token ?? ''
+        token.googleExpiresAt    = account.expires_at    ?? 0
       }
       return token
     },
