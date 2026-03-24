@@ -7,7 +7,7 @@ import { getKeywords, type Keyword } from '@/lib/api'
 import { useGasToken } from '@/hooks/useGasToken'
 
 // ── Three.js は動的import（SSR回避） ─────────────────────────
-declare global { interface Window { THREE: typeof import('three') } }
+declare global { interface Window { THREE: any } }
 
 export default function SynapsePage() {
   return (
