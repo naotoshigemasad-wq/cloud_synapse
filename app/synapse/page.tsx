@@ -47,7 +47,7 @@ function drawKeyword(text: string, fontKey: string): HTMLCanvasElement {
 
   // letter-spacing 模擬（canvasにはletter-spacingがないため手動で描画）
   if (cfg.letterSpacing !== 0) {
-    const chars  = [...text]
+    const chars  = text.split('')
     const widths = chars.map(c => ctx.measureText(c).width)
     const total  = widths.reduce((a, b) => a + b, 0) + cfg.letterSpacing * (chars.length - 1)
     let x = 256 - total / 2
