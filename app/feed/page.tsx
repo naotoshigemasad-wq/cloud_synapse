@@ -231,17 +231,19 @@ export default function FeedPage() {
 
   // ── ひらめき生成 ────────────────────────────────────────────
   async function handleGenerate() {
-    if (!themeText.trim() || generating || !token) return
-    setGenerating(true)
-    try {
-      const { createTheme } = await import('@/lib/api')
-      const result = await createTheme(token, { text: themeText.trim() })
-      router.push(`/synapse?themeId=${result.themeId}&theme=${encodeURIComponent(themeText.trim())}`)
-    } catch(e) {
-      console.error(e)
-      setGenerating(false)
-    }
+  if (!themeText.trim() || generating || !token) return
+  setGenerating(true)
+  try {
+    const { createTheme } = await import('@/lib/api')
+    const result = await createTheme(token, { text: themeText.trim() })
+    console.log('createTheme result:', JSON.stringify(result))
+    console.log('themeId:', result.themeId)
+    router.push(`/synapse?themeId=${result.themeId}&theme=${encodeURIComponent(themeText.trim())}`)
+  } catch(e) {
+    console.error(e)
+    setGenerating(false)
   }
+}
 
   function handleConnect(key: PlatformKey) {
     setPlatforms(prev => prev.map(p =>
