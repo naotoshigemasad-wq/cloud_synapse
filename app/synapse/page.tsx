@@ -166,8 +166,16 @@ function SynapseInner() {
     if (!ready || !themeId) return
     setLoadMsg('キーワードを取得中...')
     getKeywords(token, themeId)
-      .then(r => { setKeywords(r.keywords || []); setLoadMsg('空間を構築中...') })
-      .catch(() => setLoadMsg('取得に失敗しました'))
+  .then(r => {
+    console.log('keywords response:', JSON.stringify(r).slice(0, 200))
+    console.log('keywords count:', r.keywords?.length)
+    setKeywords(r.keywords || [])
+    setLoadMsg('空間を構築中...')
+  })
+  .catch(e => {
+    console.error('getKeywords error:', e)
+    setLoadMsg('取得に失敗しました')
+  })
   }, [ready, token, themeId])
 
   useEffect(() => {
