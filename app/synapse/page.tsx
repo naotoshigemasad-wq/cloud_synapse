@@ -6,8 +6,136 @@ import { useEffect, useRef, useState, Suspense } from 'react'
 import { getKeywords, type Keyword } from '@/lib/api'
 import { useGasToken } from '@/hooks/useGasToken'
 
-// ── Three.js は動的import（SSR回避） ─────────────────────────
 declare global { interface Window { THREE: any } }
+
+// ── フォント設定マップ ────────────────────────────────────────
+const FONT_CONFIG: Record<string, {
+  font: string, weight: string, style: string,
+  color: string, shadowColor: string, shadowBlur: number,
+  letterSpacing: number, alpha: number, outline: boolean
+}> = {
+  ultra:     { font:'"Noto Sans JP",sans-serif',    weight:'900', style:'normal',  color:'rgba(255,255,255,0.96)',   shadowColor:'rgba(180,220,255,0.9)', shadowBlur:28, letterSpacing:2,  alpha:0.95, outline:false },
+  condensed: { font:'"Noto Sans JP",sans-serif',    weight:'700', style:'normal',  color:'rgba(180,210,255,0.90)',   shadowColor:'rgba(100,160,255,0.7)', shadowBlur:18, letterSpacing:-2, alpha:0.88, outline:false },
+  expanded:  { font:'"Noto Sans JP",sans-serif',    weight:'300', style:'normal',  color:'rgba(160,200,255,0.85)',   shadowColor:'rgba(80,140,255,0.6)',  shadowBlur:14, letterSpacing:6,  alpha:0.85, outline:false },
+  ghost:     { font:'"Noto Sans JP",sans-serif',    weight:'200', style:'normal',  color:'rgba(200,220,255,0.30)',   shadowColor:'rgba(100,150,255,0.2)', shadowBlur:8,  letterSpacing:4,  alpha:0.35, outline:false },
+  outline:   { font:'"Noto Sans JP",sans-serif',    weight:'700', style:'normal',  color:'rgba(0,0,0,0)',            shadowColor:'rgba(130,190,255,0.6)', shadowBlur:0,  letterSpacing:2,  alpha:0.80, outline:true  },
+  italic:    { font:'"Noto Serif JP",Georgia,serif', weight:'400', style:'italic', color:'rgba(220,200,255,0.88)',   shadowColor:'rgba(160,100,255,0.7)', shadowBlur:20, letterSpacing:1,  alpha:0.88, outline:false },
+  neon:      { font:'"Noto Sans JP",sans-serif',    weight:'700', style:'normal',  color:'rgba(120,240,210,0.95)',   shadowColor:'rgba(60,220,180,0.9)',  shadowBlur:32, letterSpacing:3,  alpha:0.92, outline:false },
+  serif:     { font:'"Noto Serif JP",Georgia,serif', weight:'700', style:'normal', color:'rgba(240,220,190,0.88)',   shadowColor:'rgba(200,160,80,0.6)',  shadowBlur:16, letterSpacing:2,  alpha:0.88, outline:false },
+  serifL:    { font:'"Noto Serif JP",Georgia,serif', weight:'200', style:'normal', color:'rgba(220,210,200,0.72)',   shadowColor:'rgba(180,150,100,0.4)', shadowBlur:10, letterSpacing:5,  alpha:0.75, outline:false },
+  waveFont:  { font:'"Noto Sans JP",sans-serif',    weight:'400', style:'normal',  color:'rgba(180,240,255,0.88)',   shadowColor:'rgba(80,200,240,0.8)',  shadowBlur:24, letterSpacing:8,  alpha:0.88, outline:false },
+}
+
+// ── キャンバスにキーワードを描画 ──────────────────────────────
+function drawKeyword(text: string, fontKey: string): HTMLCanvasElement {
+  const cfg = FONT_CONFIG[fontKey] || FONT_CONFIG.condensed
+  const cv  = document.createElement('canvas')
+  cv.width = 512; cv.height = 128
+  const ctx = cv.getContext('2d')!
+  ctx.clearRect(0, 0, 512, 128)
+
+  const charCount = [...text].length
+  const fs = Math.min(52, Math.max(28, Math.floor(440 / charCount)))
+
+  ctx.save()
+  ctx.font        = `${cfg.style} ${cfg.weight} ${fs}px ${cfg.font}`
+  ctx.textBaseline = 'middle'
+  ctx.textAlign    = 'center'
+  ctx.globalAlpha  = cfg.alpha
+  ctx.shadowBlur   = cfg.shadowBlur
+  ctx.shadowColor  = cfg.shadowColor
+
+  // letter-spacing 模擬（canvasにはletter-spacingがないため手動で描画）
+  if (cfg.letterSpacing !== 0) {
+    const chars  = [...text]
+    const widths = chars.map(c => ctx.measureText(c).width)
+    const total  = widths.reduce((a, b) => a + b, 0) + cfg.letterSpacing * (chars.length - 1)
+    let x = 256 - total / 2
+    chars.forEach((c, i) => {
+      if (cfg.outline) {
+        ctx.strokeStyle = cfg.shadowColor
+        ctx.lineWidth   = 1.5
+        ctx.strokeText(c, x + widths[i] / 2, 64)
+      }
+      ctx.fillStyle = cfg.color
+      ctx.fillText(c, x + widths[i] / 2, 64)
+      x += widths[i] + cfg.letterSpacing
+    })
+  } else {
+    if (cfg.outline) {
+      ctx.strokeStyle = cfg.shadowColor
+      ctx.lineWidth   = 1.5
+      ctx.strokeText(text, 256, 64)
+    }
+    ctx.fillStyle = cfg.color
+    ctx.fillText(text, 256, 64)
+  }
+  ctx.restore()
+  return cv
+}
+
+// ── アニメーション初期状態 ────────────────────────────────────
+function getAnimInit(animKey: string, mesh: any, THREE: any) {
+  const orig = mesh.position.clone()
+  switch(animKey) {
+    case 'rise':     mesh.position.y -= 80; mesh.material.opacity = 0; break
+    case 'fall':     mesh.position.y += 80; mesh.material.opacity = 0; break
+    case 'scatter':  mesh.position.x += (Math.random()-.5)*300; mesh.position.z += (Math.random()-.5)*300; mesh.material.opacity = 0; break
+    case 'scale':    mesh.scale.multiplyScalar(0.01); mesh.material.opacity = 0; break
+    case 'fadeBlur': mesh.material.opacity = 0; break
+    case 'glitch':   mesh.material.opacity = 0; break
+    case 'stagger':  mesh.material.opacity = 0; break
+    case 'wipe':     mesh.position.x -= 200; mesh.material.opacity = 0; break
+    default:         mesh.material.opacity = 0; break
+  }
+  return orig
+}
+
+// ── アニメーション更新 ────────────────────────────────────────
+function updateAnim(animKey: string, mesh: any, orig: any, progress: number, t: number) {
+  const p = Math.min(1, progress)
+  const ease = 1 - Math.pow(1 - p, 3) // ease-out-cubic
+  switch(animKey) {
+    case 'rise':
+    case 'fall':
+      mesh.position.y = orig.y - (1-ease) * (animKey==='rise' ? -80 : 80)
+      mesh.material.opacity = ease * 0.88
+      break
+    case 'scatter':
+      mesh.position.x = orig.x + (1-ease) * (mesh.position.x - orig.x)
+      mesh.position.z = orig.z + (1-ease) * (mesh.position.z - orig.z)
+      mesh.material.opacity = ease * 0.88
+      break
+    case 'scale':
+      const s = ease
+      mesh.scale.set(
+        mesh.userData.baseScale.x * Math.max(0.01, s),
+        mesh.userData.baseScale.y * Math.max(0.01, s),
+        1
+      )
+      mesh.material.opacity = ease * 0.88
+      break
+    case 'glitch':
+      if (p < 0.6) {
+        mesh.material.opacity = Math.random() > 0.4 ? 0.9 : 0
+        mesh.position.x = orig.x + (Math.random()-.5) * 20 * (1-p)
+      } else {
+        mesh.position.x = orig.x
+        mesh.material.opacity = ease * 0.88
+      }
+      break
+    case 'wipe':
+      mesh.position.x = orig.x - (1-ease) * 200
+      mesh.material.opacity = ease * 0.88
+      break
+    case 'stagger':
+      mesh.material.opacity = ease * 0.88
+      break
+    default: // fadeBlur
+      mesh.material.opacity = ease * 0.88
+      break
+  }
+}
 
 export default function SynapsePage() {
   return (
@@ -19,52 +147,38 @@ export default function SynapsePage() {
 
 function SynapseInner() {
   const { status } = useSession()
-  const router      = useRouter()
-  const params      = useSearchParams()
+  const router     = useRouter()
+  const params     = useSearchParams()
   const { token, ready } = useGasToken()
 
   const themeId  = params.get('themeId') || ''
   const themeTxt = params.get('theme')   || ''
 
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [keywords, setKeywords] = useState<Keyword[]>([])
-  const [loadMsg,  setLoadMsg]  = useState('記憶を取得中...')
-  const [loaded,   setLoaded]   = useState(false)
+  const canvasRef  = useRef<HTMLCanvasElement>(null)
+  const [keywords,  setKeywords]  = useState<Keyword[]>([])
+  const [loadMsg,   setLoadMsg]   = useState('記憶を取得中...')
+  const [loaded,    setLoaded]    = useState(false)
   const [shotLabel, setShotLabel] = useState('')
 
   useEffect(() => { if (status === 'unauthenticated') router.replace('/login') }, [status, router])
 
-  // キーワード取得
   useEffect(() => {
     if (!ready || !themeId) return
     setLoadMsg('キーワードを取得中...')
     getKeywords(token, themeId)
-      .then(r => {
-        setKeywords(r.keywords || [])
-        setLoadMsg('空間を構築中...')
-      })
+      .then(r => { setKeywords(r.keywords || []); setLoadMsg('空間を構築中...') })
       .catch(() => setLoadMsg('取得に失敗しました'))
   }, [ready, token, themeId])
 
-  // Three.js 初期化（キーワードが揃ってから）
   useEffect(() => {
     if (!canvasRef.current || keywords.length === 0) return
-
     let ren: any, animId: number
 
-    async function init() {
-      // Three.js を動的ロード
-      const script = document.createElement('script')
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'
-      script.onload = () => buildScene()
-      document.head.appendChild(script)
-    }
-
     function buildScene() {
-      const THREE = (window as any).THREE
-      const cv    = canvasRef.current!
-      const W     = window.innerWidth, H = window.innerHeight
-      const dpr   = Math.min(devicePixelRatio || 1, 2)
+      const THREE = window.THREE
+      const cv = canvasRef.current!
+      const W = window.innerWidth, H = window.innerHeight
+      const dpr = Math.min(devicePixelRatio || 1, 2)
 
       ren = new THREE.WebGLRenderer({ canvas: cv, antialias: true })
       ren.setPixelRatio(dpr); ren.setSize(W, H); ren.setClearColor(0x020810, 1)
@@ -82,34 +196,36 @@ function SynapseInner() {
       scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color:0x6a8ad8, size:1.0, transparent:true, opacity:.16 })))
 
       // キーワードメッシュ
-      const meshes: any[] = []
-      keywords.forEach(kw => {
-        const cv2 = document.createElement('canvas')
-        cv2.width = 420; cv2.height = 110
-        const ctx = cv2.getContext('2d')!
-        ctx.clearRect(0,0,420,110)
-        const fs = Math.min(46, Math.floor(420*.74/kw.text.length))
-        ctx.font = `700 ${fs}px "Noto Sans JP",sans-serif`
-        ctx.textBaseline = 'middle'; ctx.textAlign = 'center'
-        ctx.globalAlpha = 0.85
-        ctx.shadowBlur = 20; ctx.shadowColor = 'rgba(128,194,255,0.8)'
-        ctx.fillStyle  = 'rgba(190,215,255,0.92)'
-        ctx.fillText(kw.text, 210, 55)
+      const meshes: any[]    = []
+      const origPos: any[]   = []
+      const animKeys: string[] = []
+      const animStart: number[] = []
+      const STAGGER_INTERVAL = 8  // フレーム間隔
 
-        const tex = new THREE.CanvasTexture(cv2)
+      keywords.forEach((kw, idx) => {
+        const kwCanvas = drawKeyword(kw.text, kw.fontKey || 'condensed')
+        const tex = new THREE.CanvasTexture(kwCanvas)
         tex.generateMipmaps = false; tex.minFilter = THREE.LinearFilter
-        const mat  = new THREE.MeshBasicMaterial({ map:tex, transparent:true, depthWrite:false, side:THREE.DoubleSide })
-        const sh   = 26 + kw.score*34, sw = sh*(420/110)
+        const mat  = new THREE.MeshBasicMaterial({ map:tex, transparent:true, depthWrite:false, side:THREE.DoubleSide, opacity:0 })
+        const sh   = 24 + kw.score * 36
+        const sw   = sh * (512 / 128)
         const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1,1), mat)
         mesh.scale.set(sw, sh, 1)
         mesh.position.set(kw.posX || 0, kw.posY || 0, kw.posZ || 0)
+        mesh.userData.baseScale = { x: sw, y: sh }
         scene.add(mesh)
+
+        const animKey = kw.animKey || 'fadeBlur'
+        const orig    = getAnimInit(animKey, mesh, THREE)
         meshes.push(mesh)
+        origPos.push(orig)
+        animKeys.push(animKey)
+        // staggerはインデックス順に遅延
+        animStart.push(animKey === 'stagger' ? idx * STAGGER_INTERVAL : 0)
       })
 
       // カメラオートパイロット
-      const FONT_KEYS = ['expanded','condensed','ultra','neon','italic','outline','waveFont','serif','serifL','ghost']
-      let fTimer = 0, fDur = 300
+      let fTimer = 0, fDur = 300, frameCount = 0
       const dpos = new THREE.Vector3(0, 80, 520)
       const dtgt = new THREE.Vector3(0, 0, 0)
       const ctgt = new THREE.Vector3(0, 0, 0)
@@ -137,22 +253,39 @@ function SynapseInner() {
         }
       }
       nextShot()
-      setLoaded(true)
-      setLoadMsg('')
+      setLoaded(true); setLoadMsg('')
 
       const clk = new THREE.Clock()
-      const _tc = new THREE.Vector3()
+      const _tc  = new THREE.Vector3()
+      const ANIM_DURATION = 60  // frames
 
       function frame() {
         animId = requestAnimationFrame(frame)
         const t = clk.getElapsedTime()
+        frameCount++
 
-        meshes.forEach(mesh => {
+        meshes.forEach((mesh, idx) => {
+          // 登場アニメーション
+          const elapsed  = frameCount - animStart[idx]
+          const progress = elapsed / ANIM_DURATION
+          if (progress < 1) {
+            updateAnim(animKeys[idx], mesh, origPos[idx], progress, t)
+          } else {
+            // アニメーション完了後は呼吸する opacity
+            const baseAlpha = FONT_CONFIG[keywords[idx].fontKey || 'condensed']?.alpha || 0.88
+            mesh.material.opacity = baseAlpha * (0.82 + Math.sin(t*.28+idx*.62)*.12)
+            // scale アニメーション完了後は正規サイズに戻す
+            if (animKeys[idx] === 'scale') {
+              const bs = mesh.userData.baseScale
+              mesh.scale.set(bs.x, bs.y, 1)
+            }
+            if (animKeys[idx] === 'glitch') mesh.position.x = origPos[idx].x
+          }
+
           mesh.lookAt(cam.position)
           _tc.subVectors(cam.position, mesh.position).normalize()
           const elev = Math.asin(Math.max(-1, Math.min(1,_tc.y)))
           mesh.rotateX(-elev*.42)
-          mesh.material.opacity = 0.78+Math.sin(t*.30+meshes.indexOf(mesh)*.68)*.10
         })
 
         fTimer++
@@ -173,7 +306,11 @@ function SynapseInner() {
       })
     }
 
-    init()
+    const script = document.createElement('script')
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'
+    script.onload = () => buildScene()
+    document.head.appendChild(script)
+
     return () => { cancelAnimationFrame(animId); ren?.dispose?.() }
   }, [keywords])
 
@@ -181,7 +318,6 @@ function SynapseInner() {
     <div style={{ position:'relative', width:'100vw', height:'100vh', background:'#020810', overflow:'hidden' }}>
       <canvas ref={canvasRef} style={{ position:'absolute', inset:0, width:'100%', height:'100%' }}/>
 
-      {/* ローディングオーバーレイ */}
       {!loaded && (
         <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#020810', zIndex:10, gap:12 }}>
           <div style={{ fontFamily:'"Space Mono",monospace', fontSize:11, color:'rgba(130,160,250,0.3)', letterSpacing:'0.16em' }}>
@@ -193,21 +329,17 @@ function SynapseInner() {
         </div>
       )}
 
-      {/* UI オーバーレイ */}
       {loaded && (
         <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:4 }}>
-          {/* タイトル */}
           <div style={{ position:'absolute', top:20, left:24, fontFamily:'"Space Mono",monospace', fontSize:15, fontWeight:700, color:'rgba(200,220,255,0.85)', letterSpacing:'0.18em' }}>
             CLOUD SYNAPSE
           </div>
           <div style={{ position:'absolute', top:46, left:24, fontFamily:'"Space Mono",monospace', fontSize:9, color:'rgba(120,150,210,0.28)', letterSpacing:'0.12em' }}>
             THEME : {themeTxt}
           </div>
-          {/* ショットラベル */}
           <div style={{ position:'absolute', top:20, right:180, fontFamily:'"Space Mono",monospace', fontSize:9, color:'rgba(120,145,210,0.22)', letterSpacing:'0.08em' }}>
             {shotLabel}
           </div>
-          {/* 戻るボタン */}
           <div style={{ position:'absolute', top:14, right:18, pointerEvents:'all' }}>
             <button
               onClick={() => router.push('/feed')}
@@ -216,7 +348,6 @@ function SynapseInner() {
               ← BACK
             </button>
           </div>
-          {/* キーワード数 */}
           <div style={{ position:'absolute', bottom:20, left:20, fontFamily:'"Space Mono",monospace', fontSize:10, color:'rgba(150,170,230,0.28)', letterSpacing:'0.05em' }}>
             {keywords.length} keywords
           </div>
