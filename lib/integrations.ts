@@ -8,7 +8,7 @@ async function gasPost(path: string, token: string, body: Record<string, unknown
   const params = new URLSearchParams({ path })
   const res = await fetch(`${GAS_URL}?${params}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'text/plain' },  // ← application/json から変更
     body: JSON.stringify({ ...body, token }),
   })
   return res.json()
