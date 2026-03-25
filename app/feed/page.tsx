@@ -367,23 +367,49 @@ export default function FeedPage() {
 
 // ── メッセージバブル ──────────────────────────────────────────
 function MessageBubble({ item }: { item: Item }) {
-  const isUrl  = item.type !== 'note'
-  const color  = typeColor[item.platform] || typeColor['']
-  const label  = typeLabel(item.type, item.platform)
+  const isUrl = item.type !== 'note'
+  const color = typeColor[item.platform] || typeColor['']
+  const label = typeLabel(item.type, item.platform)
+
+  // メモ：content をそのまま表示
+  // URL系：displayTitle（OGPタイトル）→ content の先頭をサマリーとして表示
+  const title = isUrl
+    ? (item.displayTitle || item.url?.slice(0, 60) || '')
+    : (item.content || '')
+
+  const summary = isUrl && item.content && item.content !== item.displayTitle
+    ? item.content.slice(0, 80) + (item.content.length > 80 ? '…' : '')
+    : ''
 
   return (
     <div style={s.bubbleWrap}>
       <div style={s.bubble}>
+        {/* タイプバッジ */}
         <div style={{ ...s.bubbleBadge, color, borderColor: color }}>{label}</div>
-        <div style={s.bubbleTitle}>
-          {item.displayTitle || item.content?.slice(0,40) || item.url?.slice(0,40)}
-        </div>
-        {isUrl && item.url && (
-          <div style={s.bubbleUrl}>{item.url.slice(0,60)}{item.url.length > 60 ? '…' : ''}</div>
+
+        {/* タイトル */}
+        <div style={s.bubbleTitle}>{title}</div>
+
+        {/* URL系のみ：サマリーとURL */}
+        {isUrl && summary && (
+          <div style={s.bubbleSummary}>{summary}</div>
         )}
-        {item.thumbnailUrl && <img src={item.thumbnailUrl} alt="" style={s.thumb}/>}
+        {isUrl && item.url && (
+          <div style={s.bubbleUrl}>
+            {item.url.slice(0, 60)}{item.url.length > 60 ? '…' : ''}
+          </div>
+        )}
+
+        {/* サムネイル */}
+        {item.thumbnailUrl && (
+          <img src={item.thumbnailUrl} alt="" style={s.thumb}/>
+        )}
+
+        {/* 時刻 */}
         <div style={s.bubbleTime}>
-          {item.createdAt ? new Date(item.createdAt).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}) : ''}
+          {item.createdAt
+            ? new Date(item.createdAt).toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' })
+            : ''}
         </div>
       </div>
     </div>
@@ -416,6 +442,7 @@ const s: Record<string, React.CSSProperties> = {
   bubble:{ maxWidth:'72%', background:'rgba(40,60,160,0.22)', border:'0.5px solid rgba(70,110,230,0.2)', borderRadius:'16px 16px 4px 16px', padding:'10px 14px' },
   bubbleBadge:{ fontSize:10, fontFamily:'"Space Mono",monospace', letterSpacing:'0.05em', marginBottom:5, border:'0.5px solid', display:'inline-block', padding:'1px 7px', borderRadius:10 },
   bubbleTitle:{ fontSize:13, color:'rgba(210,225,255,0.85)', lineHeight:1.6, marginBottom:3, fontWeight:500 },
+  bubbleSummary:{ fontSize:11, color:'rgba(160,185,240,0.55)', lineHeight:1.6, marginBottom:2 },
   bubbleUrl:{ fontSize:10, color:'rgba(110,140,220,0.45)', fontFamily:'monospace', wordBreak:'break-all' },
   thumb:{ width:'100%', borderRadius:8, marginTop:8, maxHeight:140, objectFit:'cover' },
   bubbleTime:{ fontSize:10, color:'rgba(100,130,210,0.3)', marginTop:5, textAlign:'right', fontFamily:'monospace' },
