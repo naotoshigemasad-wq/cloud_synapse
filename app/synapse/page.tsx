@@ -34,7 +34,7 @@ function drawKeyword(text: string, fontKey: string): HTMLCanvasElement {
   const ctx = cv.getContext('2d')!
   ctx.clearRect(0, 0, 512, 128)
 
-  const charCount = [...text].length
+  const charCount = text.length
   const fs = Math.min(52, Math.max(28, Math.floor(440 / charCount)))
 
   ctx.save()
