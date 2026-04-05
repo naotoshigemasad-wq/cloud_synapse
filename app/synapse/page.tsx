@@ -3,12 +3,11 @@
 import { getKeywords, createTheme, getItems, type Keyword } from '@/lib/api'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useRef, useState, Suspense, useCallback } from 'react'
+import { useEffect, useRef, useState, Suspense } from 'react'
 import { useGasToken } from '@/hooks/useGasToken'
 
 declare global { interface Window { THREE: any } }
 
-// ── フォント設定マップ ────────────────────────────────────────
 const FONT_CONFIG: Record<string, {
   font: string; weight: string; style: string
   color: string; shadowColor: string; shadowBlur: number
@@ -26,18 +25,17 @@ const FONT_CONFIG: Record<string, {
   waveFont:  { font:'"Noto Sans JP",sans-serif',     weight:'400', style:'normal', color:'rgba(180,240,255,0.88)', shadowColor:'rgba(80,200,240,0.8)',  shadowBlur:24, letterSpacing:8,  alpha:0.88, outline:false },
 }
 
-// ── ライトモード用フォント色（暗い色に反転）────────────────────
 const FONT_CONFIG_LIGHT: Record<string, Partial<typeof FONT_CONFIG[string]>> = {
-  ultra:     { color:'rgba(10,20,80,0.96)',   shadowColor:'rgba(30,60,180,0.6)'  },
-  condensed: { color:'rgba(20,40,140,0.90)',  shadowColor:'rgba(40,80,200,0.5)'  },
-  expanded:  { color:'rgba(30,60,160,0.85)',  shadowColor:'rgba(40,90,200,0.4)'  },
-  ghost:     { color:'rgba(30,60,160,0.25)',  shadowColor:'rgba(40,80,200,0.15)' },
-  outline:   { color:'rgba(0,0,0,0)',         shadowColor:'rgba(30,80,200,0.5)'  },
-  italic:    { color:'rgba(80,30,160,0.85)',  shadowColor:'rgba(100,40,200,0.5)' },
-  neon:      { color:'rgba(0,140,100,0.90)',  shadowColor:'rgba(0,180,130,0.6)'  },
-  serif:     { color:'rgba(100,60,0,0.85)',   shadowColor:'rgba(140,80,0,0.4)'   },
-  serifL:    { color:'rgba(80,50,20,0.70)',   shadowColor:'rgba(120,80,30,0.3)'  },
-  waveFont:  { color:'rgba(0,120,160,0.85)',  shadowColor:'rgba(0,160,200,0.5)'  },
+  ultra:    { color:'rgba(10,20,80,0.96)',   shadowColor:'rgba(30,60,180,0.6)'  },
+  condensed:{ color:'rgba(20,40,140,0.90)',  shadowColor:'rgba(40,80,200,0.5)'  },
+  expanded: { color:'rgba(30,60,160,0.85)',  shadowColor:'rgba(40,90,200,0.4)'  },
+  ghost:    { color:'rgba(30,60,160,0.25)',  shadowColor:'rgba(40,80,200,0.15)' },
+  outline:  { color:'rgba(0,0,0,0)',         shadowColor:'rgba(30,80,200,0.5)'  },
+  italic:   { color:'rgba(80,30,160,0.85)',  shadowColor:'rgba(100,40,200,0.5)' },
+  neon:     { color:'rgba(0,140,100,0.90)',  shadowColor:'rgba(0,180,130,0.6)'  },
+  serif:    { color:'rgba(100,60,0,0.85)',   shadowColor:'rgba(140,80,0,0.4)'   },
+  serifL:   { color:'rgba(80,50,20,0.70)',   shadowColor:'rgba(120,80,30,0.3)'  },
+  waveFont: { color:'rgba(0,120,160,0.85)',  shadowColor:'rgba(0,160,200,0.5)'  },
 }
 
 function getFontConfig(fontKey: string, dark: boolean) {
@@ -46,7 +44,6 @@ function getFontConfig(fontKey: string, dark: boolean) {
   return { ...base, ...(FONT_CONFIG_LIGHT[fontKey] || {}) }
 }
 
-// ── キーワード描画 ────────────────────────────────────────────
 function drawKeyword(text: string, fontKey: string, dark: boolean): HTMLCanvasElement {
   const cfg = getFontConfig(fontKey, dark)
   const cv  = document.createElement('canvas')
@@ -62,7 +59,6 @@ function drawKeyword(text: string, fontKey: string, dark: boolean): HTMLCanvasEl
   ctx.globalAlpha  = cfg.alpha
   ctx.shadowBlur   = cfg.shadowBlur
   ctx.shadowColor  = cfg.shadowColor
-
   if (cfg.letterSpacing !== 0) {
     const chars  = Array.from(text)
     const widths = chars.map(c => ctx.measureText(c).width)
@@ -81,7 +77,6 @@ function drawKeyword(text: string, fontKey: string, dark: boolean): HTMLCanvasEl
   return cv
 }
 
-// ── アニメーション ────────────────────────────────────────────
 function getAnimInit(animKey: string, mesh: any) {
   const orig = mesh.position.clone()
   switch(animKey) {
@@ -139,26 +134,36 @@ function SynapseInner() {
   const themeId  = params.get('themeId') || ''
   const themeTxt = params.get('theme')   || ''
 
-  const canvasRef    = useRef<HTMLCanvasElement>(null)
+  const canvasRef     = useRef<HTMLCanvasElement>(null)
+  const sceneRef      = useRef<any>(null)
   const itemUrlMapRef = useRef<Record<string, string>>({})
-  const sceneRef     = useRef<any>(null)  // Three.js scene への参照
+
   const [keywords,   setKeywords]   = useState<Keyword[]>([])
   const [loadMsg,    setLoadMsg]    = useState('記憶を取得中...')
   const [loaded,     setLoaded]     = useState(false)
   const [shotLabel,  setShotLabel]  = useState('')
-  const [cycleCount, setCycleCount] = useState(0)  // 一巡カウント
+  const [cycleCount, setCycleCount] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const [dark,       setDark]       = useState(true)
-  const [itemUrlMap,    setItemUrlMap]    = useState<Record<string, string>>({})
-  const [clickedKw,     setClickedKw]     = useState<Keyword|null>(null)
-  const [clickedUrls,   setClickedUrls]   = useState<string[]>([])
+  const [clickedKw,  setClickedKw]  = useState<Keyword|null>(null)
+  const [clickedUrls,setClickedUrls]= useState<string[]>([])
 
   useEffect(() => {
     const saved = localStorage.getItem('cs_dark')
-    setDark(saved !== '0')  // デフォルトdark
+    setDark(saved !== '0')
   }, [])
 
   useEffect(() => { if (status === 'unauthenticated') router.replace('/login') }, [status, router])
+
+  // アイテムURLマップを構築
+  useEffect(() => {
+    if (!ready) return
+    getItems(token, {}).then(r => {
+      const map: Record<string, string> = {}
+      r.items?.forEach((item: any) => { if (item.url) map[item.id] = item.url })
+      itemUrlMapRef.current = map
+    }).catch(() => {})
+  }, [ready, token])
 
   // キーワード取得
   useEffect(() => {
@@ -169,33 +174,14 @@ function SynapseInner() {
       .catch(() => setLoadMsg('取得に失敗しました'))
   }, [ready, token, themeId])
 
-  // アイテムのURLマップを構築
-useEffect(() => {
-  if (!ready) return
-getItems(token, {}).then(r => {
-  const map: Record<string, string> = {}
-  r.items?.forEach(item => { if (item.url) map[item.id] = item.url })
-  setItemUrlMap(map)
-  itemUrlMapRef.current = map  // ← 追加
-}).catch(() => {})
-}, [ready, token])
-
-  // 一巡後にキーワードを再生成して入れ替え
+  // 一巡後にキーワードを再生成
   useEffect(() => {
     if (cycleCount === 0 || !ready || !themeTxt || refreshing) return
     setRefreshing(true)
     setLoadMsg('新しいひらめきを生成中...')
     createTheme(token, { text: themeTxt })
-      .then(r => {
-        setKeywords(r.keywords || [])
-        setRefreshing(false)
-        setLoadMsg('')
-      })
-      .catch(e => {
-        console.error(e)
-        setRefreshing(false)
-        setLoadMsg('')
-      })
+      .then(r => { setKeywords(r.keywords || []); setRefreshing(false); setLoadMsg('') })
+      .catch(e => { console.error(e); setRefreshing(false); setLoadMsg('') })
   }, [cycleCount])
 
   // Three.js 初期化
@@ -218,7 +204,6 @@ getItems(token, {}).then(r => {
       const cam   = new THREE.PerspectiveCamera(60, W/H, 1, 3000)
       cam.position.set(0, 80, 520)
 
-      // 星（ダークモードのみ）
       if (dark) {
         const sp: number[] = []
         for (let i = 0; i < 1100; i++) sp.push((Math.random()-.5)*3200,(Math.random()-.5)*3200,(Math.random()-.5)*3200)
@@ -227,20 +212,17 @@ getItems(token, {}).then(r => {
         scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color:0x6a8ad8, size:1.0, transparent:true, opacity:.16 })))
       }
 
-      // キーワードメッシュ構築
       const meshes:    any[]    = []
       const origPos:   any[]    = []
       const animKeys:  string[] = []
       const animStart: number[] = []
       const STAGGER_INTERVAL = 8
-      let   frameCount = 0
+      let frameCount = 0
 
       function buildMeshes(kws: Keyword[]) {
-        // 既存meshを削除
         meshes.forEach(m => { scene.remove(m); m.geometry.dispose(); m.material.dispose() })
         meshes.length = 0; origPos.length = 0; animKeys.length = 0; animStart.length = 0
         frameCount = 0
-
         kws.forEach((kw, idx) => {
           const kwCanvas = drawKeyword(kw.text, kw.fontKey || 'condensed', dark)
           const tex = new THREE.CanvasTexture(kwCanvas)
@@ -253,7 +235,6 @@ getItems(token, {}).then(r => {
           mesh.position.set(kw.posX || 0, kw.posY || 0, kw.posZ || 0)
           mesh.userData.baseScale = { x: sw, y: sh }
           scene.add(mesh)
-
           const animKey = kw.animKey || 'fadeBlur'
           const orig    = getAnimInit(animKey, mesh)
           meshes.push(mesh)
@@ -265,8 +246,32 @@ getItems(token, {}).then(r => {
 
       buildMeshes(keywords)
 
-      // カメラ巡回
-      const SHOTS_PER_CYCLE = keywords.length + 5  // キーワード数+余裕で1巡とみなす
+      // Raycaster（クリック判定）
+      const raycaster = new THREE.Raycaster()
+      const mouse     = new THREE.Vector2()
+      cv.addEventListener('click', (event: MouseEvent) => {
+        const rect = cv.getBoundingClientRect()
+        mouse.x =  ((event.clientX - rect.left) / rect.width)  * 2 - 1
+        mouse.y = -((event.clientY - rect.top)  / rect.height) * 2 + 1
+        raycaster.setFromCamera(mouse, cam)
+        const hits = raycaster.intersectObjects(meshes)
+        if (hits.length > 0) {
+          const idx = meshes.indexOf(hits[0].object)
+          if (idx >= 0) {
+            const kw   = currentKws[idx]
+            const urls = (kw.sourceItemIds || [])
+              .map((id: string) => itemUrlMapRef.current[id])
+              .filter(Boolean)
+            setClickedKw(kw)
+            setClickedUrls(urls)
+          }
+        } else {
+          setClickedKw(null)
+          setClickedUrls([])
+        }
+      })
+
+      const SHOTS_PER_CYCLE = keywords.length + 5
       let shotCount = 0
       let fTimer = 0, fDur = 300
       const dpos = new THREE.Vector3(0, 80, 520)
@@ -276,13 +281,11 @@ getItems(token, {}).then(r => {
       const _tc  = new THREE.Vector3()
       const clk  = new THREE.Clock()
 
+      let currentKws = [...keywords]
+
       function nextShot(kws: Keyword[]) {
         shotCount++
-        if (shotCount >= SHOTS_PER_CYCLE) {
-          shotCount = 0
-          setCycleCount(c => c + 1)
-        }
-
+        if (shotCount >= SHOTS_PER_CYCLE) { shotCount = 0; setCycleCount(c => c + 1) }
         const r = Math.random(), i = Math.floor(Math.random() * kws.length)
         const kw = kws[i]
         if (r < .2) {
@@ -304,11 +307,9 @@ getItems(token, {}).then(r => {
         }
       }
 
-      let currentKws = [...keywords]
       nextShot(currentKws)
       setLoaded(true); setLoadMsg('')
 
-      // キーワード更新を外から受け取るための参照
       sceneRef.current = {
         updateKeywords: (newKws: Keyword[]) => {
           currentKws = newKws
@@ -317,36 +318,10 @@ getItems(token, {}).then(r => {
         }
       }
 
-      // クリックでキーワード選択
-      const raycaster = new THREE.Raycaster()
-      const mouse     = new THREE.Vector2()
-      cv.addEventListener('click', (event) => {
-        const rect = cv.getBoundingClientRect()
-        mouse.x =  ((event.clientX - rect.left) / rect.width)  * 2 - 1
-        mouse.y = -((event.clientY - rect.top)  / rect.height) * 2 + 1
-        raycaster.setFromCamera(mouse, cam)
-        const hits = raycaster.intersectObjects(meshes)
-        if (hits.length > 0) {
-          const idx = meshes.indexOf(hits[0].object)
-          if (idx >= 0) {
-            const kw   = currentKws[idx]
-const urls = (kw.sourceItemIds || [])
-  .map((id: string) => itemUrlMapRef.current[id])  // ← itemUrlMap → itemUrlMapRef.current
-  .filter(Boolean)
-            setClickedKw(kw)
-            setClickedUrls(urls)
-          }
-        } else {
-          setClickedKw(null)
-          setClickedUrls([])
-        }
-      })
-
       function frame() {
         animId = requestAnimationFrame(frame)
         const t = clk.getElapsedTime()
         frameCount++
-
         meshes.forEach((mesh, idx) => {
           const elapsed  = frameCount - animStart[idx]
           const progress = elapsed / ANIM_DURATION
@@ -363,7 +338,6 @@ const urls = (kw.sourceItemIds || [])
           const elev = Math.asin(Math.max(-1, Math.min(1, _tc.y)))
           mesh.rotateX(-elev * .42)
         })
-
         fTimer++
         if (fTimer >= fDur) { fTimer = 0; nextShot(currentKws) }
         const drift = new THREE.Vector3(
@@ -390,18 +364,17 @@ const urls = (kw.sourceItemIds || [])
     return () => { cancelAnimationFrame(animId); ren?.dispose?.() }
   }, [keywords, dark])
 
-  // キーワード更新時にシーンを更新
   useEffect(() => {
     if (sceneRef.current && keywords.length > 0 && loaded) {
       sceneRef.current.updateKeywords(keywords)
     }
   }, [keywords])
 
-  const bgColor = dark ? '#020810' : '#fafbff'
-  const textColor = dark ? 'rgba(200,220,255,0.85)' : 'rgba(10,30,100,0.85)'
-  const subColor  = dark ? 'rgba(120,150,210,0.28)' : 'rgba(30,60,150,0.28)'
-  const btnBg     = dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,80,0.06)'
-  const btnBorder = dark ? 'rgba(90,115,220,0.18)' : 'rgba(60,90,200,0.20)'
+  const bgColor  = dark ? '#020810' : '#fafbff'
+  const textColor= dark ? 'rgba(200,220,255,0.85)' : 'rgba(10,30,100,0.85)'
+  const subColor = dark ? 'rgba(120,150,210,0.28)' : 'rgba(30,60,150,0.28)'
+  const btnBg    = dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,80,0.06)'
+  const btnBorder= dark ? 'rgba(90,115,220,0.18)' : 'rgba(60,90,200,0.20)'
 
   return (
     <div style={{ position:'relative', width:'100vw', height:'100vh', background:bgColor, overflow:'hidden' }}>
@@ -419,76 +392,66 @@ const urls = (kw.sourceItemIds || [])
         </div>
       )}
 
-      {/* 更新中インジケーター */}
+      {/* 更新中 */}
       {refreshing && loaded && (
         <div style={{ position:'absolute', bottom:50, left:'50%', transform:'translateX(-50%)', fontFamily:'"Space Mono",monospace', fontSize:10, color:dark?'rgba(130,160,250,0.5)':'rgba(30,60,180,0.5)', letterSpacing:'0.12em', zIndex:5 }}>
           新しいひらめきを生成中...
         </div>
       )}
 
-      {/* キーワードリンクパネル（pointerEvents:none の外に配置） */}
+      {/* UIオーバーレイ（pointerEvents:none） */}
+      {loaded && (
+        <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:4 }}>
+          <div style={{ position:'absolute', top:20, left:24, fontFamily:'"Space Mono",monospace', fontSize:15, fontWeight:700, color:textColor, letterSpacing:'0.18em' }}>CLOUD SYNAPSE</div>
+          <div style={{ position:'absolute', top:46, left:24, fontFamily:'"Space Mono",monospace', fontSize:9, color:subColor, letterSpacing:'0.12em' }}>THEME : {themeTxt}</div>
+          <div style={{ position:'absolute', top:20, right:180, fontFamily:'"Space Mono",monospace', fontSize:9, color:subColor, letterSpacing:'0.08em' }}>{shotLabel}</div>
+          <div style={{ position:'absolute', bottom:20, left:20, fontFamily:'"Space Mono",monospace', fontSize:10, color:subColor, letterSpacing:'0.05em' }}>{keywords.length} keywords</div>
+          <div style={{ position:'absolute', top:14, right:18, pointerEvents:'all', display:'flex', gap:8 }}>
+            <button onClick={() => { setDark(d => { localStorage.setItem('cs_dark', d?'0':'1'); return !d }) }} style={{ background:btnBg, border:`0.5px solid ${btnBorder}`, borderRadius:6, padding:'7px 12px', fontSize:13, color:dark?'rgba(180,200,255,0.55)':'rgba(40,60,160,0.55)', cursor:'pointer' }}>
+              {dark ? '☀' : '🌙'}
+            </button>
+            <button onClick={() => router.push('/feed')} style={{ background:btnBg, border:`0.5px solid ${btnBorder}`, borderRadius:6, padding:'7px 15px', fontSize:11, color:dark?'rgba(130,165,240,0.48)':'rgba(40,80,180,0.55)', cursor:'pointer', fontFamily:'"Space Mono",monospace', letterSpacing:'0.06em' }}>
+              ← BACK
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* キーワードリンクパネル（pointerEvents:none の外） */}
       {loaded && clickedKw && (
         <div
           onClick={e => e.stopPropagation()}
           style={{
-            position: 'absolute', bottom: 60, left: '50%',
-            transform: 'translateX(-50%)', zIndex: 20,
+            position:'absolute', bottom:60, left:'50%', transform:'translateX(-50%)',
+            zIndex:20, minWidth:200, maxWidth:340,
             background: dark ? 'rgba(8,12,30,0.95)' : 'rgba(240,244,255,0.95)',
-            border: `0.5px solid ${dark ? 'rgba(80,110,230,0.35)' : 'rgba(60,100,200,0.30)'}`,
-            borderRadius: 14, padding: '14px 20px',
-            minWidth: 200, maxWidth: 340,
-            backdropFilter: 'blur(8px)',
+            border:`0.5px solid ${dark ? 'rgba(80,110,230,0.35)' : 'rgba(60,100,200,0.30)'}`,
+            borderRadius:14, padding:'14px 20px', backdropFilter:'blur(8px)',
           }}
         >
-          <div style={{ fontSize: 14, fontWeight: 500, color: dark ? 'rgba(200,220,255,0.9)' : 'rgba(10,30,100,0.9)', marginBottom: 8, fontFamily: '"Noto Sans JP",sans-serif' }}>
+          <div style={{ fontSize:14, fontWeight:500, color: dark?'rgba(200,220,255,0.9)':'rgba(10,30,100,0.9)', marginBottom:8, fontFamily:'"Noto Sans JP",sans-serif' }}>
             {clickedKw.text}
           </div>
           {clickedUrls.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
               {clickedUrls.map((url, i) => (
-                
+                <a
                   key={i} href={url} target="_blank" rel="noopener noreferrer"
-                  style={{ fontSize: 11, color: dark ? 'rgba(130,180,255,0.9)' : 'rgba(30,80,200,0.9)', fontFamily: 'monospace', wordBreak: 'break-all', textDecoration: 'underline', display: 'block', padding: '6px 10px', background: dark ? 'rgba(60,90,200,0.18)' : 'rgba(60,90,200,0.10)', borderRadius: 8, border: `0.5px solid ${dark ? 'rgba(80,120,240,0.30)' : 'rgba(60,100,200,0.22)'}` }}
+                  style={{ fontSize:11, color: dark?'rgba(130,180,255,0.9)':'rgba(30,80,200,0.9)', fontFamily:'monospace', wordBreak:'break-all', textDecoration:'underline', display:'block', padding:'6px 10px', background: dark?'rgba(60,90,200,0.18)':'rgba(60,90,200,0.10)', borderRadius:8, border:`0.5px solid ${dark?'rgba(80,120,240,0.30)':'rgba(60,100,200,0.22)'}` }}
                 >
                   🔗 {url.slice(0, 50)}{url.length > 50 ? '…' : ''}
                 </a>
               ))}
             </div>
           ) : (
-            <div style={{ fontSize: 11, color: dark ? 'rgba(130,150,220,0.5)' : 'rgba(60,80,160,0.5)' }}>リンクなし</div>
+            <div style={{ fontSize:11, color: dark?'rgba(130,150,220,0.5)':'rgba(60,80,160,0.5)' }}>リンクなし</div>
           )}
           <button
             onClick={() => { setClickedKw(null); setClickedUrls([]) }}
-            style={{ marginTop: 10, width: '100%', padding: '5px', background: 'none', border: 'none', fontSize: 10, color: dark ? 'rgba(120,145,220,0.4)' : 'rgba(60,80,160,0.4)', cursor: 'pointer' }}
+            style={{ marginTop:10, width:'100%', padding:'5px', background:'none', border:'none', fontSize:10, color: dark?'rgba(120,145,220,0.4)':'rgba(60,80,160,0.4)', cursor:'pointer' }}
           >
             ✕ 閉じる
           </button>
-        </div>
-      )}
-              <div style={{ fontSize: 14, fontWeight: 500, color: dark ? 'rgba(200,220,255,0.9)' : 'rgba(10,30,100,0.9)', marginBottom: 8, fontFamily: '"Noto Sans JP",sans-serif' }}>
-                {clickedKw.text}
-              </div>
-              {clickedUrls.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {clickedUrls.map((url, i) => (
-                    <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{
-                      fontSize: 10, color: dark ? 'rgba(130,180,255,0.8)' : 'rgba(30,80,200,0.8)',
-                      fontFamily: 'monospace', wordBreak: 'break-all', textDecoration: 'none',
-                      display: 'block', padding: '4px 8px',
-                      background: dark ? 'rgba(60,90,200,0.15)' : 'rgba(60,90,200,0.08)',
-                      borderRadius: 6, border: `0.5px solid ${dark ? 'rgba(80,120,240,0.25)' : 'rgba(60,100,200,0.2)'}`,
-                    }}>
-                      🔗 {url.slice(0, 50)}{url.length > 50 ? '…' : ''}
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <div style={{ fontSize: 11, color: dark ? 'rgba(130,150,220,0.5)' : 'rgba(60,80,160,0.5)' }}>リンクなし</div>
-              )}
-              <button onClick={() => { setClickedKw(null); setClickedUrls([]) }} style={{ marginTop: 10, width: '100%', padding: '5px', background: 'none', border: 'none', fontSize: 10, color: dark ? 'rgba(120,145,220,0.4)' : 'rgba(60,80,160,0.4)', cursor: 'pointer' }}>✕ 閉じる</button>
-            </div>
-          )}
-          </div>
         </div>
       )}
 
