@@ -8,7 +8,17 @@ import { useGasToken } from '@/hooks/useGasToken'
 
 declare global { interface Window { THREE: any } }
 
-// ── フォント設定 ──────────────────────────────────────────────
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+  return isMobile
+}
+
 const FONT_CONFIG: Record<string, {
   font: string; weight: string; style: string
   color: string; shadowColor: string; shadowBlur: number
@@ -45,14 +55,14 @@ function getFontConfig(fontKey: string, dark: boolean) {
   return { ...base, ...(FONT_CONFIG_LIGHT[fontKey] || {}) }
 }
 
-function drawKeyword(text: string, fontKey: string, dark: boolean): HTMLCanvasElement {
+function drawKeyword(text: string, fontKey: string, dark: boolean, scale = 1): HTMLCanvasElement {
   const cfg = getFontConfig(fontKey, dark)
   const cv  = document.createElement('canvas')
   cv.width = 512; cv.height = 128
   const ctx = cv.getContext('2d')!
   ctx.clearRect(0, 0, 512, 128)
   const charCount = Array.from(text).length
-  const fs = Math.min(52, Math.max(28, Math.floor(440 / charCount)))
+  const fs = Math.min(52, Math.max(28, Math.floor(440 / charCount))) * scale
   ctx.save()
   ctx.font         = `${cfg.style} ${cfg.weight} ${fs}px ${cfg.font}`
   ctx.textBaseline = 'middle'; ctx.textAlign = 'center'
@@ -115,7 +125,6 @@ function updateAnim(animKey: string, mesh: any, orig: any, progress: number, dar
   }
 }
 
-// ── 画像テクスチャを非同期ロード ──────────────────────────────
 function loadImageTexture(THREE: any, url: string): Promise<any> {
   return new Promise((resolve, reject) => {
     const img = new Image()
@@ -132,13 +141,8 @@ function loadImageTexture(THREE: any, url: string): Promise<any> {
   })
 }
 
-// ── メディアアイテムの型 ──────────────────────────────────────
 interface MediaItem {
-  id: string
-  type: string
-  thumbnailUrl: string
-  displayTitle: string
-  url: string
+  id: string; type: string; thumbnailUrl: string; displayTitle: string; url: string
 }
 
 export default function SynapsePage() {
@@ -154,6 +158,7 @@ function SynapseInner() {
   const router     = useRouter()
   const params     = useSearchParams()
   const { token, ready } = useGasToken()
+  const isMobile   = useIsMobile()
 
   const themeId  = params.get('themeId') || ''
   const themeTxt = params.get('theme')   || ''
@@ -180,7 +185,6 @@ function SynapseInner() {
 
   useEffect(() => { if (status === 'unauthenticated') router.replace('/login') }, [status, router])
 
-  // アイテム取得（URLマップ + 画像・動画）
   useEffect(() => {
     if (!ready) return
     getItems(token, {}).then(r => {
@@ -188,15 +192,8 @@ function SynapseInner() {
       const media: MediaItem[] = []
       r.items?.forEach((item: any) => {
         if (item.url) map[item.id] = item.url
-        // 画像・動画でサムネイルがあるものを収集
         if ((item.type === 'image' || item.type === 'video') && item.thumbnailUrl) {
-          media.push({
-            id:           item.id,
-            type:         item.type,
-            thumbnailUrl: item.thumbnailUrl,
-            displayTitle: item.displayTitle || '',
-            url:          item.url || '',
-          })
+          media.push({ id:item.id, type:item.type, thumbnailUrl:item.thumbnailUrl, displayTitle:item.displayTitle||'', url:item.url||'' })
         }
       })
       itemUrlMapRef.current = map
@@ -204,7 +201,6 @@ function SynapseInner() {
     }).catch(() => {})
   }, [ready, token])
 
-  // キーワード取得
   useEffect(() => {
     if (!ready || !themeId) return
     setLoadMsg('キーワードを取得中...')
@@ -213,7 +209,6 @@ function SynapseInner() {
       .catch(() => setLoadMsg('取得に失敗しました'))
   }, [ready, token, themeId])
 
-  // 一巡後にキーワードを再生成
   useEffect(() => {
     if (cycleCount === 0 || !ready || !themeTxt || refreshing) return
     setRefreshing(true)
@@ -223,7 +218,6 @@ function SynapseInner() {
       .catch(e => { console.error(e); setRefreshing(false); setLoadMsg('') })
   }, [cycleCount])
 
-  // Three.js 初期化
   useEffect(() => {
     if (!canvasRef.current || keywords.length === 0) return
     let ren: any, animId: number
@@ -240,53 +234,43 @@ function SynapseInner() {
 
       const scene = new THREE.Scene()
       scene.fog   = new THREE.FogExp2(dark ? 0x020810 : 0xfafbff, 0.00106)
-      const cam   = new THREE.PerspectiveCamera(60, W/H, 1, 3000)
-      cam.position.set(0, 80, 520)
 
-      // 星（ダークモードのみ）
+      // モバイルは視野角を広くしてキーワードを見やすく
+      const fov = isMobile ? 72 : 60
+      const cam = new THREE.PerspectiveCamera(fov, W/H, 1, 3000)
+      cam.position.set(0, 80, isMobile ? 620 : 520)
+
       if (dark) {
         const sp: number[] = []
-        for (let i = 0; i < 1100; i++) sp.push((Math.random()-.5)*3200,(Math.random()-.5)*3200,(Math.random()-.5)*3200)
+        for (let i = 0; i < 800; i++) sp.push((Math.random()-.5)*3200,(Math.random()-.5)*3200,(Math.random()-.5)*3200)
         const sg = new THREE.BufferGeometry()
         sg.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3))
         scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color:0x6a8ad8, size:1.0, transparent:true, opacity:.16 })))
       }
 
-      // ── 画像・動画サムネイルメッシュ ──────────────────────────
-      const phi  = Math.PI * (Math.sqrt(5) - 1)
-      const R    = 400  // キーワードより少し外側
+      // メディアサムネイル
+      const phi = Math.PI * (Math.sqrt(5) - 1)
+      const R   = isMobile ? 340 : 400
       const mediaMeshes: any[] = []
-
       for (let i = 0; i < mediaItems.length; i++) {
         const item = mediaItems[i]
         try {
           const tex = await loadImageTexture(THREE, item.thumbnailUrl)
-          const mat = new THREE.MeshBasicMaterial({
-            map: tex, transparent: true, depthWrite: false,
-            side: THREE.DoubleSide, opacity: 0,
-          })
-          // 黄金角螺旋で均等配置（キーワードとずらすためオフセット）
+          const mat = new THREE.MeshBasicMaterial({ map:tex, transparent:true, depthWrite:false, side:THREE.DoubleSide, opacity:0 })
           const y   = 1 - ((i + 0.5) / mediaItems.length) * 2
           const rad = Math.sqrt(Math.max(0, 1 - y*y))
-          const th  = phi * (i + 50)  // オフセット
-          const posX = R * rad * Math.cos(th)
-          const posY = R * y
-          const posZ = R * rad * Math.sin(th)
-
-          // アスペクト比を維持（横160 × 縦90 基準）
-          const w = 160, h = item.type === 'image' ? 160 : 90
+          const th  = phi * (i + 50)
           const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat)
+          const w = isMobile ? 120 : 160, h = item.type === 'image' ? w : w * 9/16
           mesh.scale.set(w, h, 1)
-          mesh.position.set(posX, posY, posZ)
+          mesh.position.set(R*rad*Math.cos(th), R*y, R*rad*Math.sin(th))
           mesh.userData.mediaItem = item
           scene.add(mesh)
           mediaMeshes.push(mesh)
-        } catch(e) {
-          // 画像ロード失敗はスキップ
-        }
+        } catch(e) {}
       }
 
-      // ── テキストキーワードメッシュ ────────────────────────────
+      // テキストキーワード
       const meshes:    any[]    = []
       const origPos:   any[]    = []
       const animKeys:  string[] = []
@@ -294,16 +278,19 @@ function SynapseInner() {
       const STAGGER_INTERVAL = 8
       let frameCount = 0
 
+      // モバイルはフォントを少し大きく描画
+      const fontScale = isMobile ? 1.15 : 1
+
       function buildMeshes(kws: Keyword[]) {
         meshes.forEach(m => { scene.remove(m); m.geometry.dispose(); m.material.dispose() })
         meshes.length = 0; origPos.length = 0; animKeys.length = 0; animStart.length = 0
         frameCount = 0
         kws.forEach((kw, idx) => {
-          const kwCanvas = drawKeyword(kw.text, kw.fontKey || 'condensed', dark)
+          const kwCanvas = drawKeyword(kw.text, kw.fontKey || 'condensed', dark, fontScale)
           const tex = new THREE.CanvasTexture(kwCanvas)
           tex.generateMipmaps = false; tex.minFilter = THREE.LinearFilter
           const mat  = new THREE.MeshBasicMaterial({ map:tex, transparent:true, depthWrite:false, side:THREE.DoubleSide, opacity:0 })
-          const sh   = 24 + kw.score * 36
+          const sh   = (isMobile ? 20 : 24) + kw.score * (isMobile ? 28 : 36)
           const sw   = sh * (512 / 128)
           const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1,1), mat)
           mesh.scale.set(sw, sh, 1)
@@ -312,57 +299,56 @@ function SynapseInner() {
           scene.add(mesh)
           const animKey = kw.animKey || 'fadeBlur'
           const orig    = getAnimInit(animKey, mesh)
-          meshes.push(mesh)
-          origPos.push(orig)
-          animKeys.push(animKey)
+          meshes.push(mesh); origPos.push(orig); animKeys.push(animKey)
           animStart.push(animKey === 'stagger' ? idx * STAGGER_INTERVAL : 0)
         })
       }
 
       buildMeshes(keywords)
 
-      // ── Raycaster（クリック判定：テキスト + メディア）─────────
+      // タッチ・クリック判定
       const raycaster = new THREE.Raycaster()
       const mouse     = new THREE.Vector2()
-      cv.addEventListener('click', (event: MouseEvent) => {
-        const rect = cv.getBoundingClientRect()
-        mouse.x =  ((event.clientX - rect.left) / rect.width)  * 2 - 1
-        mouse.y = -((event.clientY - rect.top)  / rect.height) * 2 + 1
-        raycaster.setFromCamera(mouse, cam)
 
-        // メディアメッシュのクリック判定（優先）
+      function handleTap(clientX: number, clientY: number) {
+        const rect = cv.getBoundingClientRect()
+        mouse.x =  ((clientX - rect.left) / rect.width)  * 2 - 1
+        mouse.y = -((clientY - rect.top)  / rect.height) * 2 + 1
+        raycaster.setFromCamera(mouse, cam)
         const mediaHits = raycaster.intersectObjects(mediaMeshes)
         if (mediaHits.length > 0) {
           const mi = mediaHits[0].object.userData.mediaItem as MediaItem
           if (mi?.url) {
-            setClickedKw({ text: mi.displayTitle || mi.type, score: 1, sourceItemIds: [mi.id], fontKey: 'condensed', animKey: 'fadeBlur', id: mi.id, posX: 0, posY: 0, posZ: 0 } as any)
+            setClickedKw({ text:mi.displayTitle||mi.type, score:1, sourceItemIds:[mi.id], fontKey:'condensed', animKey:'fadeBlur', id:mi.id, posX:0, posY:0, posZ:0 } as any)
             setClickedUrls([mi.url])
           }
           return
         }
-
-        // テキストキーワードのクリック判定
         const hits = raycaster.intersectObjects(meshes)
         if (hits.length > 0) {
           const idx = meshes.indexOf(hits[0].object)
           if (idx >= 0) {
             const kw   = currentKws[idx]
-            const urls = (kw.sourceItemIds || [])
-              .map((id: string) => itemUrlMapRef.current[id])
-              .filter(Boolean)
-            setClickedKw(kw)
-            setClickedUrls(urls)
+            const urls = (kw.sourceItemIds || []).map((id: string) => itemUrlMapRef.current[id]).filter(Boolean)
+            setClickedKw(kw); setClickedUrls(urls)
           }
         } else {
-          setClickedKw(null)
-          setClickedUrls([])
+          setClickedKw(null); setClickedUrls([])
         }
-      })
+      }
 
-      // ── カメラオートパイロット ───────────────────────────────
+      cv.addEventListener('click', (e: MouseEvent) => handleTap(e.clientX, e.clientY))
+      cv.addEventListener('touchend', (e: TouchEvent) => {
+        if (e.changedTouches.length > 0) {
+          e.preventDefault()
+          handleTap(e.changedTouches[0].clientX, e.changedTouches[0].clientY)
+        }
+      }, { passive: false })
+
+      // カメラオートパイロット
       const SHOTS_PER_CYCLE = keywords.length + 5
-      let shotCount = 0, fTimer = 0, fDur = 300
-      const dpos = new THREE.Vector3(0, 80, 520)
+      let shotCount = 0, fTimer = 0, fDur = isMobile ? 220 : 300
+      const dpos = new THREE.Vector3(0, 80, isMobile ? 620 : 520)
       const dtgt = new THREE.Vector3(0, 0, 0)
       const ctgt = new THREE.Vector3(0, 0, 0)
       const ANIM_DURATION = 60
@@ -375,31 +361,29 @@ function SynapseInner() {
         if (shotCount >= SHOTS_PER_CYCLE) { shotCount = 0; setCycleCount(c => c + 1) }
         const r = Math.random(), i = Math.floor(Math.random() * kws.length)
         const kw = kws[i]
-        if (r < .15) {
-          // メディアをフォーカス
-          if (mediaMeshes.length > 0) {
-            const mi = mediaMeshes[Math.floor(Math.random() * mediaMeshes.length)]
-            const p  = mi.position
-            const a  = Math.random()*Math.PI*2
-            dpos.set(p.x+Math.cos(a)*120, p.y+30, p.z+Math.sin(a)*120)
-            dtgt.copy(p); fDur=480; setShotLabel('MEDIA')
-            return
-          }
+        if (r < .15 && mediaMeshes.length > 0) {
+          const mi = mediaMeshes[Math.floor(Math.random() * mediaMeshes.length)]
+          const p  = mi.position, a = Math.random()*Math.PI*2
+          dpos.set(p.x+Math.cos(a)*(isMobile?80:120), p.y+30, p.z+Math.sin(a)*(isMobile?80:120))
+          dtgt.copy(p); fDur=isMobile?180:480; setShotLabel('MEDIA')
+          return
         }
         if (r < .35) {
           const a = Math.random()*Math.PI*2
-          dpos.set(Math.cos(a)*580,(Math.random()-.5)*230,Math.sin(a)*580)
-          dtgt.set(0,0,0); fDur=480; setShotLabel('WIDE')
+          dpos.set(Math.cos(a)*(isMobile?480:580),(Math.random()-.5)*230,Math.sin(a)*(isMobile?480:580))
+          dtgt.set(0,0,0); fDur=isMobile?200:480; setShotLabel('WIDE')
         } else if (r < .65) {
           const p = new THREE.Vector3(kw.posX||0, kw.posY||0, kw.posZ||0)
           const a = Math.random()*Math.PI*2, el=(Math.random()-.5)*Math.PI*.5
-          dpos.set(p.x+Math.cos(a)*Math.cos(el)*(36+kw.score*62), p.y+Math.sin(el)*(36+kw.score*62)*.5, p.z+Math.sin(a)*Math.cos(el)*(36+kw.score*62))
-          dtgt.copy(p); fDur=540; setShotLabel('CLOSE')
+          const d = (isMobile?28:36)+kw.score*(isMobile?48:62)
+          dpos.set(p.x+Math.cos(a)*Math.cos(el)*d, p.y+Math.sin(el)*d*.5, p.z+Math.sin(a)*Math.cos(el)*d)
+          dtgt.copy(p); fDur=isMobile?200:540; setShotLabel('CLOSE')
         } else {
           const p = new THREE.Vector3(kw.posX||0, kw.posY||0, kw.posZ||0)
           const a = Math.random()*Math.PI*2, el=(Math.random()-.5)*Math.PI*.7
-          dpos.set(p.x+Math.cos(a)*Math.cos(el)*(75+kw.score*155), p.y+Math.sin(el)*(75+kw.score*155)*.48, p.z+Math.sin(a)*Math.cos(el)*(75+kw.score*155))
-          dtgt.copy(p); fDur=480; setShotLabel('FLY')
+          const d = (isMobile?60:75)+kw.score*(isMobile?120:155)
+          dpos.set(p.x+Math.cos(a)*Math.cos(el)*d, p.y+Math.sin(el)*d*.48, p.z+Math.sin(a)*Math.cos(el)*d)
+          dtgt.copy(p); fDur=isMobile?180:480; setShotLabel('FLY')
         }
       }
 
@@ -408,9 +392,7 @@ function SynapseInner() {
 
       sceneRef.current = {
         updateKeywords: (newKws: Keyword[]) => {
-          currentKws = newKws
-          buildMeshes(newKws)
-          nextShot(newKws)
+          currentKws = newKws; buildMeshes(newKws); nextShot(newKws)
         }
       }
 
@@ -419,7 +401,6 @@ function SynapseInner() {
         const t = clk.getElapsedTime()
         frameCount++
 
-        // テキストキーワードのアニメーション
         meshes.forEach((mesh, idx) => {
           const elapsed  = frameCount - animStart[idx]
           const progress = elapsed / ANIM_DURATION
@@ -436,25 +417,23 @@ function SynapseInner() {
           mesh.rotateX(-Math.asin(Math.max(-1, Math.min(1, _tc.y))) * .42)
         })
 
-        // メディアメッシュのアニメーション（フェードイン + ゆっくり浮遊）
         mediaMeshes.forEach((mesh, idx) => {
-          if (mesh.material.opacity < 0.82) {
-            mesh.material.opacity = Math.min(0.82, mesh.material.opacity + 0.008)
-          } else {
-            mesh.material.opacity = 0.75 + Math.sin(t * .18 + idx * 1.2) * 0.07
-          }
+          if (mesh.material.opacity < 0.82) mesh.material.opacity = Math.min(0.82, mesh.material.opacity + 0.008)
+          else mesh.material.opacity = 0.75 + Math.sin(t*.18+idx*1.2)*.07
           mesh.lookAt(cam.position)
-          // わずかに浮遊
-          mesh.position.y += Math.sin(t * .12 + idx) * 0.05
+          mesh.position.y += Math.sin(t*.12 + idx) * 0.04
         })
 
         fTimer++
         if (fTimer >= fDur) { fTimer = 0; nextShot(currentKws) }
+
+        // モバイルはドリフトを小さく
+        const driftScale = isMobile ? 0.5 : 1
         const drift = new THREE.Vector3(
-          Math.sin(t*.17)*20+Math.sin(t*.07)*10,
-          Math.cos(t*.13)*13+Math.cos(t*.08)*6,
-          Math.sin(t*.20)*18+Math.sin(t*.06)*8)
-        cam.position.lerp(dpos.clone().add(drift), .012)
+          (Math.sin(t*.17)*20+Math.sin(t*.07)*10)*driftScale,
+          (Math.cos(t*.13)*13+Math.cos(t*.08)*6)*driftScale,
+          (Math.sin(t*.20)*18+Math.sin(t*.06)*8)*driftScale)
+        cam.position.lerp(dpos.clone().add(drift), isMobile ? .016 : .012)
         ctgt.lerp(dtgt, .03); cam.lookAt(ctgt)
         ren.render(scene, cam)
       }
@@ -472,7 +451,7 @@ function SynapseInner() {
     document.head.appendChild(script)
 
     return () => { cancelAnimationFrame(animId); ren?.dispose?.() }
-  }, [keywords, dark, mediaItems])
+  }, [keywords, dark, mediaItems, isMobile])
 
   useEffect(() => {
     if (sceneRef.current && keywords.length > 0 && loaded) {
@@ -480,45 +459,61 @@ function SynapseInner() {
     }
   }, [keywords])
 
-  const bgColor  = dark ? '#020810' : '#fafbff'
-  const textColor= dark ? 'rgba(200,220,255,0.85)' : 'rgba(10,30,100,0.85)'
-  const subColor = dark ? 'rgba(120,150,210,0.28)' : 'rgba(30,60,150,0.28)'
-  const btnBg    = dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,80,0.06)'
-  const btnBorder= dark ? 'rgba(90,115,220,0.18)' : 'rgba(60,90,200,0.20)'
+  const bgColor   = dark ? '#020810' : '#fafbff'
+  const textColor = dark ? 'rgba(200,220,255,0.85)' : 'rgba(10,30,100,0.85)'
+  const subColor  = dark ? 'rgba(120,150,210,0.28)' : 'rgba(30,60,150,0.28)'
+  const btnBg     = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,80,0.07)'
+  const btnBorder = dark ? 'rgba(90,115,220,0.22)' : 'rgba(60,90,200,0.22)'
 
   return (
     <div style={{ position:'relative', width:'100vw', height:'100vh', background:bgColor, overflow:'hidden' }}>
-      <canvas ref={canvasRef} style={{ position:'absolute', inset:0, width:'100%', height:'100%' }}/>
+      <canvas ref={canvasRef} style={{ position:'absolute', inset:0, width:'100%', height:'100%', touchAction:'none' }}/>
 
+      {/* ローディング */}
       {!loaded && (
         <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:bgColor, zIndex:10, gap:12 }}>
-          <div style={{ fontFamily:'"Space Mono",monospace', fontSize:11, color:dark?'rgba(130,160,250,0.3)':'rgba(30,60,180,0.3)', letterSpacing:'0.16em' }}>{loadMsg || 'LOADING...'}</div>
-          <div style={{ width:100, height:1, background:'rgba(70,95,190,0.1)', overflow:'hidden' }}>
+          <div style={{ fontFamily:'"Space Mono",monospace', fontSize:11, color:dark?'rgba(130,160,250,0.3)':'rgba(30,60,180,0.3)', letterSpacing:'0.14em' }}>{loadMsg || 'LOADING...'}</div>
+          <div style={{ width:80, height:1, background:'rgba(70,95,190,0.1)', overflow:'hidden' }}>
             <div style={{ height:'100%', width:'60%', background:'rgba(100,140,255,0.4)', animation:'loading 1s ease-in-out infinite alternate' }}/>
           </div>
         </div>
       )}
 
+      {/* 更新中 */}
       {refreshing && loaded && (
-        <div style={{ position:'absolute', bottom:50, left:'50%', transform:'translateX(-50%)', fontFamily:'"Space Mono",monospace', fontSize:10, color:dark?'rgba(130,160,250,0.5)':'rgba(30,60,180,0.5)', letterSpacing:'0.12em', zIndex:5 }}>
+        <div style={{ position:'absolute', bottom:isMobile?80:50, left:'50%', transform:'translateX(-50%)', fontFamily:'"Space Mono",monospace', fontSize:10, color:dark?'rgba(130,160,250,0.5)':'rgba(30,60,180,0.5)', letterSpacing:'0.10em', zIndex:5, whiteSpace:'nowrap' }}>
           新しいひらめきを生成中...
         </div>
       )}
 
+      {/* UIオーバーレイ */}
       {loaded && (
         <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:4 }}>
-          <div style={{ position:'absolute', top:20, left:24, fontFamily:'"Space Mono",monospace', fontSize:15, fontWeight:700, color:textColor, letterSpacing:'0.18em' }}>CLOUD SYNAPSE</div>
-          <div style={{ position:'absolute', top:46, left:24, fontFamily:'"Space Mono",monospace', fontSize:9, color:subColor, letterSpacing:'0.12em' }}>THEME : {themeTxt}</div>
-          <div style={{ position:'absolute', top:20, right:220, fontFamily:'"Space Mono",monospace', fontSize:9, color:subColor }}>{shotLabel}</div>
-          <div style={{ position:'absolute', bottom:20, left:20, fontFamily:'"Space Mono",monospace', fontSize:10, color:subColor }}>
-            {keywords.length} keywords · {mediaItems.length} media
+          {/* ロゴ・テーマ（モバイルは小さく） */}
+          <div style={{ position:'absolute', top:isMobile?12:20, left:isMobile?14:24, fontFamily:'"Space Mono",monospace', fontSize:isMobile?11:15, fontWeight:700, color:textColor, letterSpacing:isMobile?'0.10em':'0.18em' }}>
+            {isMobile ? 'C·SYNAPSE' : 'CLOUD SYNAPSE'}
           </div>
-          <div style={{ position:'absolute', top:14, right:18, pointerEvents:'all', display:'flex', gap:8 }}>
-            <button onClick={() => { setDark(d => { localStorage.setItem('cs_dark', d?'0':'1'); return !d }) }} style={{ background:btnBg, border:`0.5px solid ${btnBorder}`, borderRadius:6, padding:'7px 12px', fontSize:13, color:dark?'rgba(180,200,255,0.55)':'rgba(40,60,160,0.55)', cursor:'pointer' }}>
+          {!isMobile && (
+            <div style={{ position:'absolute', top:46, left:24, fontFamily:'"Space Mono",monospace', fontSize:9, color:subColor, letterSpacing:'0.12em' }}>THEME : {themeTxt}</div>
+          )}
+          {/* キーワード数（モバイルは右下に小さく） */}
+          <div style={{ position:'absolute', bottom:isMobile?'calc(16px + env(safe-area-inset-bottom))':20, left:isMobile?'auto':20, right:isMobile?14:'auto', fontFamily:'"Space Mono",monospace', fontSize:9, color:subColor }}>
+            {keywords.length}kw · {mediaItems.length}img
+          </div>
+
+          {/* ボタン群 */}
+          <div style={{ position:'absolute', top:isMobile?8:14, right:isMobile?10:18, pointerEvents:'all', display:'flex', gap:isMobile?6:8 }}>
+            <button
+              onClick={() => { setDark(d => { localStorage.setItem('cs_dark', d?'0':'1'); return !d }) }}
+              style={{ background:btnBg, border:`0.5px solid ${btnBorder}`, borderRadius:8, padding:isMobile?'6px 10px':'7px 12px', fontSize:isMobile?12:13, color:dark?'rgba(180,200,255,0.55)':'rgba(40,60,160,0.55)', cursor:'pointer' }}
+            >
               {dark ? '☀' : '🌙'}
             </button>
-            <button onClick={() => router.push('/feed')} style={{ background:btnBg, border:`0.5px solid ${btnBorder}`, borderRadius:6, padding:'7px 15px', fontSize:11, color:dark?'rgba(130,165,240,0.48)':'rgba(40,80,180,0.55)', cursor:'pointer', fontFamily:'"Space Mono",monospace', letterSpacing:'0.06em' }}>
-              ← BACK
+            <button
+              onClick={() => router.push('/feed')}
+              style={{ background:btnBg, border:`0.5px solid ${btnBorder}`, borderRadius:8, padding:isMobile?'6px 10px':'7px 15px', fontSize:isMobile?10:11, color:dark?'rgba(130,165,240,0.55)':'rgba(40,80,180,0.60)', cursor:'pointer', fontFamily:'"Space Mono",monospace', letterSpacing:'0.04em' }}
+            >
+              ← {isMobile ? '' : 'BACK'}
             </button>
           </div>
         </div>
@@ -528,30 +523,45 @@ function SynapseInner() {
       {loaded && clickedKw && (
         <div
           onClick={e => e.stopPropagation()}
-          style={{ position:'absolute', bottom:60, left:'50%', transform:'translateX(-50%)', zIndex:20, minWidth:200, maxWidth:340, background:dark?'rgba(8,12,30,0.95)':'rgba(240,244,255,0.95)', border:`0.5px solid ${dark?'rgba(80,110,230,0.35)':'rgba(60,100,200,0.30)'}`, borderRadius:14, padding:'14px 20px', backdropFilter:'blur(8px)' }}
+          style={{
+            position:'absolute',
+            bottom: isMobile ? 'calc(60px + env(safe-area-inset-bottom))' : 60,
+            left:'50%', transform:'translateX(-50%)',
+            zIndex:20,
+            width: isMobile ? 'calc(100% - 32px)' : 'auto',
+            minWidth: isMobile ? 'auto' : 200,
+            maxWidth: isMobile ? 'calc(100% - 32px)' : 340,
+            background:dark?'rgba(8,12,30,0.96)':'rgba(240,244,255,0.96)',
+            border:`0.5px solid ${dark?'rgba(80,110,230,0.35)':'rgba(60,100,200,0.30)'}`,
+            borderRadius:14, padding: isMobile ? '14px 16px' : '14px 20px',
+            backdropFilter:'blur(10px)',
+          }}
         >
-          <div style={{ fontSize:14, fontWeight:500, color:dark?'rgba(200,220,255,0.9)':'rgba(10,30,100,0.9)', marginBottom:8, fontFamily:'"Noto Sans JP",sans-serif' }}>
+          <div style={{ fontSize:isMobile?13:14, fontWeight:500, color:dark?'rgba(200,220,255,0.9)':'rgba(10,30,100,0.9)', marginBottom:8, fontFamily:'"Noto Sans JP",sans-serif' }}>
             {clickedKw.text}
           </div>
           {clickedUrls.length > 0 ? (
             <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
               {clickedUrls.map((url, i) => (
                 <a key={i} href={url} target="_blank" rel="noopener noreferrer"
-                  style={{ fontSize:11, color:dark?'rgba(130,180,255,0.9)':'rgba(30,80,200,0.9)', fontFamily:'monospace', wordBreak:'break-all', textDecoration:'underline', display:'block', padding:'6px 10px', background:dark?'rgba(60,90,200,0.18)':'rgba(60,90,200,0.10)', borderRadius:8, border:`0.5px solid ${dark?'rgba(80,120,240,0.30)':'rgba(60,100,200,0.22)'}` }}>
-                  🔗 {url.slice(0,50)}{url.length > 50 ? '…' : ''}
+                  style={{ fontSize:11, color:dark?'rgba(130,180,255,0.9)':'rgba(30,80,200,0.9)', fontFamily:'monospace', wordBreak:'break-all', textDecoration:'underline', display:'block', padding:'6px 10px', background:dark?'rgba(60,90,200,0.18)':'rgba(60,90,200,0.10)', borderRadius:8, border:`0.5px solid ${dark?'rgba(80,120,240,0.28)':'rgba(60,100,200,0.20)'}` }}>
+                  🔗 {url.slice(0,isMobile?40:50)}{url.length>(isMobile?40:50)?'…':''}
                 </a>
               ))}
             </div>
           ) : (
             <div style={{ fontSize:11, color:dark?'rgba(130,150,220,0.5)':'rgba(60,80,160,0.5)' }}>リンクなし</div>
           )}
-          <button onClick={() => { setClickedKw(null); setClickedUrls([]) }} style={{ marginTop:10, width:'100%', padding:'5px', background:'none', border:'none', fontSize:10, color:dark?'rgba(120,145,220,0.4)':'rgba(60,80,160,0.4)', cursor:'pointer' }}>
+          <button onClick={() => { setClickedKw(null); setClickedUrls([]) }} style={{ marginTop:10, width:'100%', padding:'6px', background:'none', border:'none', fontSize:11, color:dark?'rgba(120,145,220,0.4)':'rgba(60,80,160,0.4)', cursor:'pointer' }}>
             ✕ 閉じる
           </button>
         </div>
       )}
 
-      <style>{`@keyframes loading { from { transform: translateX(-100%) } to { transform: translateX(200%) } }`}</style>
+      <style>{`
+        @keyframes loading { from { transform: translateX(-100%) } to { transform: translateX(200%) } }
+        * { -webkit-tap-highlight-color: transparent; }
+      `}</style>
     </div>
   )
 }
@@ -559,7 +569,7 @@ function SynapseInner() {
 function Loader({ msg, dark }: { msg: string; dark: boolean }) {
   return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', background:dark?'#020810':'#fafbff' }}>
-      <span style={{ color:'rgba(140,165,230,0.3)', fontFamily:'monospace', fontSize:11, letterSpacing:'0.16em' }}>{msg}</span>
+      <span style={{ color:'rgba(140,165,230,0.3)', fontFamily:'monospace', fontSize:11, letterSpacing:'0.14em' }}>{msg}</span>
     </div>
   )
 }
