@@ -1,5 +1,6 @@
 'use client'
 
+import { getKeywords, createTheme, getItems, type Keyword } from '@/lib/api'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useRef, useState, Suspense, useCallback } from 'react'
@@ -148,6 +149,9 @@ function SynapseInner() {
   const [cycleCount, setCycleCount] = useState(0)  // 一巡カウント
   const [refreshing, setRefreshing] = useState(false)
   const [dark,       setDark]       = useState(true)
+  const [itemUrlMap,    setItemUrlMap]    = useState<Record<string, string>>({})
+  const [clickedKw,     setClickedKw]     = useState<Keyword|null>(null)
+  const [clickedUrls,   setClickedUrls]   = useState<string[]>([])
 
   useEffect(() => {
     const saved = localStorage.getItem('cs_dark')
@@ -164,6 +168,16 @@ function SynapseInner() {
       .then(r => { setKeywords(r.keywords || []); setLoadMsg('空間を構築中...') })
       .catch(() => setLoadMsg('取得に失敗しました'))
   }, [ready, token, themeId])
+
+  // アイテムのURLマップを構築
+useEffect(() => {
+  if (!ready) return
+  getItems(token, {}).then(r => {
+    const map: Record<string, string> = {}
+    r.items?.forEach(item => { if (item.url) map[item.id] = item.url })
+    setItemUrlMap(map)
+  }).catch(() => {})
+}, [ready, token])
 
   // 一巡後にキーワードを再生成して入れ替え
   useEffect(() => {
@@ -302,6 +316,31 @@ function SynapseInner() {
         }
       }
 
+      // クリックでキーワード選択
+      const raycaster = new THREE.Raycaster()
+      const mouse     = new THREE.Vector2()
+      cv.addEventListener('click', (event) => {
+        const rect = cv.getBoundingClientRect()
+        mouse.x =  ((event.clientX - rect.left) / rect.width)  * 2 - 1
+        mouse.y = -((event.clientY - rect.top)  / rect.height) * 2 + 1
+        raycaster.setFromCamera(mouse, cam)
+        const hits = raycaster.intersectObjects(meshes)
+        if (hits.length > 0) {
+          const idx = meshes.indexOf(hits[0].object)
+          if (idx >= 0) {
+            const kw   = currentKws[idx]
+            const urls = (kw.sourceItemIds || [])
+              .map((id: string) => itemUrlMap[id])
+              .filter(Boolean)
+            setClickedKw(kw)
+            setClickedUrls(urls)
+          }
+        } else {
+          setClickedKw(null)
+          setClickedUrls([])
+        }
+      })
+
       function frame() {
         animId = requestAnimationFrame(frame)
         const t = clk.getElapsedTime()
@@ -348,7 +387,7 @@ function SynapseInner() {
     document.head.appendChild(script)
 
     return () => { cancelAnimationFrame(animId); ren?.dispose?.() }
-  }, [keywords, dark])
+  }, [keywords, dark, itemUrlMap])
 
   // キーワード更新時にシーンを更新
   useEffect(() => {
@@ -409,6 +448,38 @@ function SynapseInner() {
             >
               ← BACK
             </button>
+            {/* クリックされたキーワードのリンクパネル */}
+          {clickedKw && (
+            <div style={{
+              position: 'absolute', bottom: 60, left: '50%', transform: 'translateX(-50%)',
+              background: dark ? 'rgba(8,12,30,0.92)' : 'rgba(240,244,255,0.92)',
+              border: `0.5px solid ${dark ? 'rgba(80,110,230,0.3)' : 'rgba(60,100,200,0.25)'}`,
+              borderRadius: 14, padding: '14px 20px', minWidth: 200, maxWidth: 340,
+              backdropFilter: 'blur(8px)', pointerEvents: 'all', zIndex: 10,
+            }}>
+              <div style={{ fontSize: 14, fontWeight: 500, color: dark ? 'rgba(200,220,255,0.9)' : 'rgba(10,30,100,0.9)', marginBottom: 8, fontFamily: '"Noto Sans JP",sans-serif' }}>
+                {clickedKw.text}
+              </div>
+              {clickedUrls.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {clickedUrls.map((url, i) => (
+                    <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{
+                      fontSize: 10, color: dark ? 'rgba(130,180,255,0.8)' : 'rgba(30,80,200,0.8)',
+                      fontFamily: 'monospace', wordBreak: 'break-all', textDecoration: 'none',
+                      display: 'block', padding: '4px 8px',
+                      background: dark ? 'rgba(60,90,200,0.15)' : 'rgba(60,90,200,0.08)',
+                      borderRadius: 6, border: `0.5px solid ${dark ? 'rgba(80,120,240,0.25)' : 'rgba(60,100,200,0.2)'}`,
+                    }}>
+                      🔗 {url.slice(0, 50)}{url.length > 50 ? '…' : ''}
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: 11, color: dark ? 'rgba(130,150,220,0.5)' : 'rgba(60,80,160,0.5)' }}>リンクなし</div>
+              )}
+              <button onClick={() => { setClickedKw(null); setClickedUrls([]) }} style={{ marginTop: 10, width: '100%', padding: '5px', background: 'none', border: 'none', fontSize: 10, color: dark ? 'rgba(120,145,220,0.4)' : 'rgba(60,80,160,0.4)', cursor: 'pointer' }}>✕ 閉じる</button>
+            </div>
+          )}
           </div>
         </div>
       )}
