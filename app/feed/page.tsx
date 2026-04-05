@@ -163,7 +163,7 @@ export default function FeedPage() {
   useEffect(() => { if (status === 'unauthenticated') router.replace('/login') }, [status, router])
   useEffect(() => {
     if (!ready) return
-    getItems(token, { limit:50 })
+    getItems(token, { })
       .then(r => setItems(r.items || []))
       .catch(console.error)
       .finally(() => setLoadingItems(false))
