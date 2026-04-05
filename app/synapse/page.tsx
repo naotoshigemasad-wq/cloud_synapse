@@ -4,7 +4,6 @@ import { getKeywords, createTheme, getItems, type Keyword } from '@/lib/api'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useRef, useState, Suspense, useCallback } from 'react'
-import { getKeywords, createTheme, type Keyword } from '@/lib/api'
 import { useGasToken } from '@/hooks/useGasToken'
 
 declare global { interface Window { THREE: any } }
