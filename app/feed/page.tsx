@@ -317,13 +317,18 @@ export default function FeedPage() {
             <div style={{ fontSize:13, color:textSec, lineHeight:1.8 }}>最初の記憶を追加してみましょう。<br/>メモ・URL・画像など何でも保存できます。</div>
           </div>
         )}
-        {items.map(item => (
-          <MessageBubble key={item.id} item={item} dark={dark}
-            bubbleBg={bubbleBg} bubbleBorder={bubbleBorder}
-            textPrimary={textPrimary} textSec={textSec}
-            typeColors={typeColors}
-          />
-        ))}
+// items.map の部分を変更
+      {items.map(item => (
+    <MessageBubble
+    key={item.id} item={item} dark={dark}
+    bubbleBg={bubbleBg} bubbleBorder={bubbleBorder}
+    textPrimary={textPrimary} textSec={textSec}
+    typeColors={typeColors}
+    onMemoSaved={(itemId, memo) => {
+      setItems(prev => prev.map(i => i.id === itemId ? { ...i, summaryMemo: memo } : i))
+    }}
+  />
+))} 
       </div>
 
       {/* 入力エリア */}
@@ -428,44 +433,70 @@ interface BubbleProps {
   bubbleBg: string; bubbleBorder: string
   textPrimary: string; textSec: string
   typeColors: Record<string, string>
+  onMemoSaved: (itemId: string, memo: string) => void
 }
 
-function MessageBubble({ item, dark, bubbleBg, bubbleBorder, textPrimary, textSec, typeColors }: BubbleProps) {
-  const isImage  = item.type === 'image'
-  const isVideo  = item.type === 'video'
-  const isUrl    = !isImage && !isVideo && item.type !== 'note'
-  const isNote   = item.type === 'note'
-  const color    = typeColors[item.platform] || typeColors[isImage ? 'image' : ''] || typeColors['']
-  const label    = typeLabel(item.type, item.platform)
+function MessageBubble({ item, dark, bubbleBg, bubbleBorder, textPrimary, textSec, typeColors, onMemoSaved }: BubbleProps) {
+  const isImage   = item.type === 'image'
+  const isVideo   = item.type === 'video'
+  const isSnsPost = item.type === 'sns_post'
+  const isUrl     = !isImage && !isVideo && !isSnsPost && item.type !== 'note'
+  const color     = typeColors[item.platform] || typeColors[isImage ? 'image' : ''] || typeColors['']
+  const label     = typeLabel(item.type, item.platform)
 
-  // 表示テキスト決定
-  const rawTitle = isNote
+  const rawTitle     = item.type === 'note'
     ? (typeof item.content === 'string' ? item.content : '')
     : (item.displayTitle || item.url?.slice(0, 60) || '')
   const displayTitle = formatText(rawTitle)
+  const ytId         = isVideo ? extractYouTubeId(item.url || '') : null
 
-  const ytId = isVideo ? extractYouTubeId(item.url || '') : null
+  const [memoOpen,  setMemoOpen]  = useState(false)
+  const [memoInput, setMemoInput] = useState(item.summaryMemo || '')
+  const [saving,    setSaving]    = useState(false)
+  const { token } = useGasToken()
+
+  async function saveMemo() {
+    if (!token || saving) return
+    setSaving(true)
+    try {
+      const { updateItem } = await import('@/lib/api')
+      await updateItem(token, item.id, { summary_memo: memoInput })
+      onMemoSaved(item.id, memoInput)
+      setMemoOpen(false)
+    } catch(e) { console.error(e) }
+    finally { setSaving(false) }
+  }
+
+  const memoColor   = dark ? 'rgba(160,190,255,0.60)' : 'rgba(40,80,180,0.60)'
+  const inputBorder = dark ? 'rgba(80,110,230,0.22)' : 'rgba(80,110,200,0.22)'
+  const inputBg     = dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,80,0.04)'
 
   return (
     <div style={{ display:'flex', justifyContent:'flex-end' }}>
       <div style={{ maxWidth:'78%', background:bubbleBg, border:`0.5px solid ${bubbleBorder}`, borderRadius:'16px 16px 4px 16px', padding:'10px 14px' }}>
         <div style={{ fontSize:10, fontFamily:'"Space Mono",monospace', letterSpacing:'0.05em', marginBottom:5, border:`0.5px solid ${color}`, color, display:'inline-block', padding:'1px 7px', borderRadius:10 }}>{label}</div>
 
-        {/* タイトル（whitespace: pre-line で改行を反映） */}
         {displayTitle && (
           <div style={{ fontSize:13, color:textPrimary, lineHeight:1.6, marginBottom:4, fontWeight:500, whiteSpace:'pre-line' }}>
             {displayTitle}
           </div>
         )}
 
-        {/* URL表示（URL系のみ） */}
-        {isUrl && item.url && (
-          <div style={{ fontSize:10, color:textSec, fontFamily:'monospace', wordBreak:'break-all', marginBottom:4 }}>
-            {item.url.slice(0, 60)}{item.url.length > 60 ? '…' : ''}
+        {/* 補足メモ表示 */}
+        {item.summaryMemo && !memoOpen && (
+          <div style={{ fontSize:11, color:memoColor, lineHeight:1.6, marginBottom:4, borderLeft:`2px solid ${inputBorder}`, paddingLeft:8 }}>
+            {item.summaryMemo}
           </div>
         )}
 
-        {/* YouTube iframe埋め込み */}
+        {/* URL */}
+        {(isUrl || isSnsPost) && item.url && (
+          <div style={{ fontSize:10, color:textSec, fontFamily:'monospace', wordBreak:'break-all', marginBottom:4 }}>
+            {item.url.slice(0,60)}{item.url.length > 60 ? '…' : ''}
+          </div>
+        )}
+
+        {/* YouTube embed */}
         {isVideo && ytId && (
           <div style={{ marginTop:8, borderRadius:10, overflow:'hidden', position:'relative', paddingBottom:'56.25%', height:0 }}>
             <iframe
@@ -476,23 +507,60 @@ function MessageBubble({ item, dark, bubbleBg, bubbleBorder, textPrimary, textSe
             />
           </div>
         )}
-        {/* YouTube以外の動画サムネイル */}
         {isVideo && !ytId && item.thumbnailUrl && (
           <img src={item.thumbnailUrl} alt="" style={{ width:'100%', borderRadius:8, marginTop:8, maxHeight:160, objectFit:'cover' }}/>
         )}
 
-        {/* 画像表示 */}
+        {/* 画像 */}
         {isImage && item.thumbnailUrl && (
           <img src={item.thumbnailUrl} alt="" style={{ width:'100%', borderRadius:10, marginTop:6, maxHeight:260, objectFit:'contain', background:dark?'rgba(0,0,0,0.2)':'rgba(0,0,50,0.05)' }}/>
         )}
 
-        {/* URL系サムネイル */}
-        {isUrl && item.thumbnailUrl && !item.thumbnailUrl.startsWith('data:') && (
-          <img src={item.thumbnailUrl} alt="" style={{ width:'100%', borderRadius:8, marginTop:8, maxHeight:140, objectFit:'cover' }}/>
+        {/* URL・SNSサムネイル */}
+        {(isUrl || isSnsPost) && item.thumbnailUrl && !item.thumbnailUrl.startsWith('data:') && (
+          <img src={item.thumbnailUrl} alt="" style={{ width:'100%', borderRadius:8, marginTop:8, maxHeight:200, objectFit:'cover' }}/>
         )}
 
-        <div style={{ fontSize:10, color:textSec, marginTop:5, textAlign:'right', fontFamily:'monospace' }}>
-          {item.createdAt ? new Date(item.createdAt).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}) : ''}
+        {/* メモ入力エリア */}
+        {memoOpen && (
+          <div style={{ marginTop:8 }}>
+            <textarea
+              value={memoInput}
+              onChange={e => setMemoInput(e.target.value)}
+              placeholder="補足メモを入力..."
+              autoFocus
+              style={{ width:'100%', background:inputBg, border:`0.5px solid ${inputBorder}`, borderRadius:8, padding:'8px 10px', color:textPrimary, fontSize:12, resize:'none', outline:'none', lineHeight:1.6, fontFamily:'inherit' }}
+              rows={3}
+            />
+            <div style={{ display:'flex', gap:6, marginTop:6 }}>
+              <button
+                onClick={saveMemo}
+                disabled={saving}
+                style={{ flex:1, padding:'6px', background:dark?'rgba(70,110,240,0.35)':'rgba(50,90,220,0.18)', border:`0.5px solid ${inputBorder}`, borderRadius:7, fontSize:11, color:dark?'rgba(190,215,255,0.85)':'rgba(40,80,200,0.85)', cursor:'pointer' }}
+              >
+                {saving ? '保存中...' : '保存'}
+              </button>
+              <button
+                onClick={() => { setMemoOpen(false); setMemoInput(item.summaryMemo || '') }}
+                style={{ padding:'6px 10px', background:'none', border:`0.5px solid ${inputBorder}`, borderRadius:7, fontSize:11, color:textSec, cursor:'pointer' }}
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 下部：時刻 + メモボタン */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:6 }}>
+          <button
+            onClick={() => setMemoOpen(o => !o)}
+            style={{ background:'none', border:'none', fontSize:10, color:textSec, cursor:'pointer', padding:0, opacity:0.7 }}
+          >
+            {memoOpen ? '✕ 閉じる' : item.summaryMemo ? '✏ メモを編集' : '＋ メモを追加'}
+          </button>
+          <div style={{ fontSize:10, color:textSec, fontFamily:'monospace' }}>
+            {item.createdAt ? new Date(item.createdAt).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}) : ''}
+          </div>
         </div>
       </div>
     </div>
