@@ -170,8 +170,12 @@ function SynapseInner() {
     if (!ready || !themeId) return
     setLoadMsg('キーワードを取得中...')
     getKeywords(token, themeId)
-      .then(r => { setKeywords(r.keywords || []); setLoadMsg('空間を構築中...') })
-      .catch(() => setLoadMsg('取得に失敗しました'))
+  .then(r => {
+    console.log('取得キーワード数:', r.keywords?.length)
+    setKeywords(r.keywords || [])
+    setLoadMsg('空間を構築中...')
+  })
+  .catch(() => setLoadMsg('取得に失敗しました'))
   }, [ready, token, themeId])
 
   // 一巡後にキーワードを再生成
