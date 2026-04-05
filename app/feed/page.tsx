@@ -463,9 +463,11 @@ function MessageBubble({ item, dark, bubbleBg, bubbleBorder, textPrimary, textSe
       await updateItem(token, item.id, { summary_memo: memoInput })
       onMemoSaved(item.id, memoInput)
       setMemoOpen(false)
-    } catch(e) { console.error(e) }
-    finally { setSaving(false) }
-  }
+} catch(e) {
+      console.error(e)
+    } finally {
+      setSaving(false)
+    }
 
   const memoColor   = dark ? 'rgba(160,190,255,0.60)' : 'rgba(40,80,180,0.60)'
   const inputBorder = dark ? 'rgba(80,110,230,0.22)' : 'rgba(80,110,200,0.22)'
