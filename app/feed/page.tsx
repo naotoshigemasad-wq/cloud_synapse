@@ -317,7 +317,7 @@ export default function FeedPage() {
             <div style={{ fontSize:13, color:textSec, lineHeight:1.8 }}>最初の記憶を追加してみましょう。<br/>メモ・URL・画像など何でも保存できます。</div>
           </div>
         )}
-// items.map の部分を変更
+
       {items.map(item => (
     <MessageBubble
     key={item.id} item={item} dark={dark}
