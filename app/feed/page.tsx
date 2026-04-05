@@ -302,7 +302,7 @@ export default function FeedPage() {
             {dark ? '☀' : '🌙'}
           </button>
           <button onClick={() => setThemeOpen(true)} style={{ padding:'7px 16px', background:dark?'rgba(80,100,240,0.14)':'rgba(60,80,220,0.10)', border:`0.5px solid ${dark?'rgba(90,120,255,0.28)':'rgba(60,100,220,0.28)'}`, borderRadius:20, fontSize:12, color:dark?'rgba(180,200,255,0.75)':'rgba(40,80,200,0.80)', cursor:'pointer', fontFamily:'"Space Mono",monospace', letterSpacing:'0.04em' }}>
-            ✦ ひらめきを生成
+            ✦ Creative Wondering
           </button>
           <button onClick={() => signOut({ callbackUrl:'/login' })} style={{ width:32, height:32, background:'none', border:`0.5px solid ${border}`, borderRadius:8, color:textSec, cursor:'pointer', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>╮</button>
         </div>
@@ -413,11 +413,11 @@ export default function FeedPage() {
       {themeOpen && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.65)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:50, padding:20 }} onClick={() => setThemeOpen(false)}>
           <div style={{ width:'100%', maxWidth:440, background:dark?'rgba(8,12,28,0.97)':'rgba(245,248,255,0.97)', border:`0.5px solid ${border}`, borderRadius:18, padding:'36px 32px' }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontFamily:'"Space Mono",monospace', fontSize:15, fontWeight:700, color:dark?'rgba(200,220,255,0.85)':'rgba(20,40,140,0.90)', letterSpacing:'0.12em', marginBottom:10 }}>✦ ひらめきを生成</div>
-            <p style={{ fontSize:13, color:textSec, lineHeight:1.8, marginBottom:20 }}>テーマを入力すると、あなたの記憶から<br/>AIがキーワードを生成して3D空間に展開します。</p>
+            <div style={{ fontFamily:'"Space Mono",monospace', fontSize:15, fontWeight:700, color:dark?'rgba(200,220,255,0.85)':'rgba(20,40,140,0.90)', letterSpacing:'0.12em', marginBottom:10 }}>✦ Creative Wondering</div>
+            <p style={{ fontSize:13, color:textSec, lineHeight:1.8, marginBottom:20 }}>テーマを入力すると、あなたの記憶から<br/>AIがひらめきを活性化する記憶の可視化を行います。</p>
             <textarea value={themeText} onChange={e => setThemeText(e.target.value)} placeholder="例：2050年の都市交通" style={{ width:'100%', background:inputBg, border:`0.5px solid ${inputBorder}`, borderRadius:10, padding:'12px 16px', color:textPrimary, fontSize:15, resize:'none', outline:'none', lineHeight:1.6, fontFamily:'inherit', marginBottom:16 }} rows={2} autoFocus/>
             <button onClick={handleGenerate} disabled={!themeText.trim()||generating} style={{ width:'100%', padding:'13px 20px', background:dark?'rgba(70,110,250,0.5)':'rgba(50,90,220,0.7)', border:'0.5px solid rgba(90,130,255,0.45)', borderRadius:11, color:'white', fontSize:14, fontWeight:500, cursor:'pointer', letterSpacing:'0.05em', marginBottom:10, opacity:(!themeText.trim()||generating)?0.35:1 }}>
-              {generating ? '生成中...' : '空間を生成する →'}
+            {generating ? '生成中...' : 'Creative Wondering →'}
             </button>
             <button onClick={() => setThemeOpen(false)} style={{ width:'100%', padding:10, background:'none', border:'none', color:textSec, fontSize:13, cursor:'pointer' }}>キャンセル</button>
           </div>
@@ -489,12 +489,17 @@ function MessageBubble({ item, dark, bubbleBg, bubbleBorder, textPrimary, textSe
           </div>
         )}
 
-        {/* URL */}
-        {(isUrl || isSnsPost) && item.url && (
-          <div style={{ fontSize:10, color:textSec, fontFamily:'monospace', wordBreak:'break-all', marginBottom:4 }}>
-            {item.url.slice(0,60)}{item.url.length > 60 ? '…' : ''}
-          </div>
-        )}
+{/* URL */}
+{(isUrl || isSnsPost) && item.url && (
+  
+    href={item.url}
+    target="_blank"
+    rel="noopener noreferrer"
+    style={{ fontSize:10, color:textSec, fontFamily:'monospace', wordBreak:'break-all', marginBottom:4, display:'block', textDecoration:'none', opacity:0.7 }}
+  >
+    {item.url.slice(0,60)}{item.url.length > 60 ? '…' : ''}
+  </a>
+)}
 
         {/* YouTube embed */}
         {isVideo && ytId && (
