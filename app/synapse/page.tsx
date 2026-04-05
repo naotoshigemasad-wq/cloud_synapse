@@ -426,40 +426,45 @@ const urls = (kw.sourceItemIds || [])
         </div>
       )}
 
-      {/* UI オーバーレイ */}
-      {loaded && (
-        <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:4 }}>
-          <div style={{ position:'absolute', top:20, left:24, fontFamily:'"Space Mono",monospace', fontSize:15, fontWeight:700, color:textColor, letterSpacing:'0.18em' }}>CLOUD SYNAPSE</div>
-          <div style={{ position:'absolute', top:46, left:24, fontFamily:'"Space Mono",monospace', fontSize:9, color:subColor, letterSpacing:'0.12em' }}>THEME : {themeTxt}</div>
-          <div style={{ position:'absolute', top:20, right:180, fontFamily:'"Space Mono",monospace', fontSize:9, color:subColor, letterSpacing:'0.08em' }}>{shotLabel}</div>
-          <div style={{ position:'absolute', bottom:20, left:20, fontFamily:'"Space Mono",monospace', fontSize:10, color:subColor, letterSpacing:'0.05em' }}>{keywords.length} keywords</div>
-          <div style={{ position:'absolute', bottom:20, right:100, fontFamily:'"Space Mono",monospace', fontSize:9, color:subColor }}>cycle {cycleCount}</div>
-
-          {/* ボタン群 */}
-          <div style={{ position:'absolute', top:14, right:18, pointerEvents:'all', display:'flex', gap:8 }}>
-            <button
-              onClick={() => { setDark(d => { localStorage.setItem('cs_dark', d?'0':'1'); return !d }) }}
-              style={{ background:btnBg, border:`0.5px solid ${btnBorder}`, borderRadius:6, padding:'7px 12px', fontSize:13, color:dark?'rgba(180,200,255,0.55)':'rgba(40,60,160,0.55)', cursor:'pointer' }}
-            >
-              {dark ? '☀' : '🌙'}
-            </button>
-            <button
-              onClick={() => router.push('/feed')}
-              style={{ background:btnBg, border:`0.5px solid ${btnBorder}`, borderRadius:6, padding:'7px 15px', fontSize:11, color:dark?'rgba(130,165,240,0.48)':'rgba(40,80,180,0.55)', cursor:'pointer', fontFamily:'"Space Mono",monospace', letterSpacing:'0.06em' }}
-            >
-              ← BACK
-            </button>
-            {/* クリックされたキーワードのリンクパネル */}
-          {clickedKw && (
-            <div 
-            　onClick={e => e.stopPropagation()}
-            　style={{
-              position: 'absolute', bottom: 60, left: '50%', transform: 'translateX(-50%)',
-              background: dark ? 'rgba(8,12,30,0.92)' : 'rgba(240,244,255,0.92)',
-              border: `0.5px solid ${dark ? 'rgba(80,110,230,0.3)' : 'rgba(60,100,200,0.25)'}`,
-              borderRadius: 14, padding: '14px 20px', minWidth: 200, maxWidth: 340,
-              backdropFilter: 'blur(8px)', pointerEvents: 'all', zIndex: 10,
-            }}>
+      {/* キーワードリンクパネル（pointerEvents:none の外に配置） */}
+      {loaded && clickedKw && (
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            position: 'absolute', bottom: 60, left: '50%',
+            transform: 'translateX(-50%)', zIndex: 20,
+            background: dark ? 'rgba(8,12,30,0.95)' : 'rgba(240,244,255,0.95)',
+            border: `0.5px solid ${dark ? 'rgba(80,110,230,0.35)' : 'rgba(60,100,200,0.30)'}`,
+            borderRadius: 14, padding: '14px 20px',
+            minWidth: 200, maxWidth: 340,
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          <div style={{ fontSize: 14, fontWeight: 500, color: dark ? 'rgba(200,220,255,0.9)' : 'rgba(10,30,100,0.9)', marginBottom: 8, fontFamily: '"Noto Sans JP",sans-serif' }}>
+            {clickedKw.text}
+          </div>
+          {clickedUrls.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {clickedUrls.map((url, i) => (
+                
+                  key={i} href={url} target="_blank" rel="noopener noreferrer"
+                  style={{ fontSize: 11, color: dark ? 'rgba(130,180,255,0.9)' : 'rgba(30,80,200,0.9)', fontFamily: 'monospace', wordBreak: 'break-all', textDecoration: 'underline', display: 'block', padding: '6px 10px', background: dark ? 'rgba(60,90,200,0.18)' : 'rgba(60,90,200,0.10)', borderRadius: 8, border: `0.5px solid ${dark ? 'rgba(80,120,240,0.30)' : 'rgba(60,100,200,0.22)'}` }}
+                >
+                  🔗 {url.slice(0, 50)}{url.length > 50 ? '…' : ''}
+                </a>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: 11, color: dark ? 'rgba(130,150,220,0.5)' : 'rgba(60,80,160,0.5)' }}>リンクなし</div>
+          )}
+          <button
+            onClick={() => { setClickedKw(null); setClickedUrls([]) }}
+            style={{ marginTop: 10, width: '100%', padding: '5px', background: 'none', border: 'none', fontSize: 10, color: dark ? 'rgba(120,145,220,0.4)' : 'rgba(60,80,160,0.4)', cursor: 'pointer' }}
+          >
+            ✕ 閉じる
+          </button>
+        </div>
+      )}
               <div style={{ fontSize: 14, fontWeight: 500, color: dark ? 'rgba(200,220,255,0.9)' : 'rgba(10,30,100,0.9)', marginBottom: 8, fontFamily: '"Noto Sans JP",sans-serif' }}>
                 {clickedKw.text}
               </div>
