@@ -140,6 +140,7 @@ function SynapseInner() {
   const themeTxt = params.get('theme')   || ''
 
   const canvasRef    = useRef<HTMLCanvasElement>(null)
+  const itemUrlMapRef = useRef<Record<string, string>>({})
   const sceneRef     = useRef<any>(null)  // Three.js scene への参照
   const [keywords,   setKeywords]   = useState<Keyword[]>([])
   const [loadMsg,    setLoadMsg]    = useState('記憶を取得中...')
@@ -171,11 +172,12 @@ function SynapseInner() {
   // アイテムのURLマップを構築
 useEffect(() => {
   if (!ready) return
-  getItems(token, {}).then(r => {
-    const map: Record<string, string> = {}
-    r.items?.forEach(item => { if (item.url) map[item.id] = item.url })
-    setItemUrlMap(map)
-  }).catch(() => {})
+getItems(token, {}).then(r => {
+  const map: Record<string, string> = {}
+  r.items?.forEach(item => { if (item.url) map[item.id] = item.url })
+  setItemUrlMap(map)
+  itemUrlMapRef.current = map  // ← 追加
+}).catch(() => {})
 }, [ready, token])
 
   // 一巡後にキーワードを再生成して入れ替え
@@ -328,9 +330,9 @@ useEffect(() => {
           const idx = meshes.indexOf(hits[0].object)
           if (idx >= 0) {
             const kw   = currentKws[idx]
-            const urls = (kw.sourceItemIds || [])
-              .map((id: string) => itemUrlMap[id])
-              .filter(Boolean)
+const urls = (kw.sourceItemIds || [])
+  .map((id: string) => itemUrlMapRef.current[id])  // ← itemUrlMap → itemUrlMapRef.current
+  .filter(Boolean)
             setClickedKw(kw)
             setClickedUrls(urls)
           }
@@ -386,7 +388,7 @@ useEffect(() => {
     document.head.appendChild(script)
 
     return () => { cancelAnimationFrame(animId); ren?.dispose?.() }
-  }, [keywords, dark, itemUrlMap])
+  }, [keywords, dark])
 
   // キーワード更新時にシーンを更新
   useEffect(() => {
@@ -449,7 +451,9 @@ useEffect(() => {
             </button>
             {/* クリックされたキーワードのリンクパネル */}
           {clickedKw && (
-            <div style={{
+            <div 
+            　onClick={e => e.stopPropagation()}
+            　style={{
               position: 'absolute', bottom: 60, left: '50%', transform: 'translateX(-50%)',
               background: dark ? 'rgba(8,12,30,0.92)' : 'rgba(240,244,255,0.92)',
               border: `0.5px solid ${dark ? 'rgba(80,110,230,0.3)' : 'rgba(60,100,200,0.25)'}`,
