@@ -454,9 +454,9 @@ function MessageBubble({ item }: { item: Item }) {
     ? (item.displayTitle && item.displayTitle !== '保存中...' ? item.displayTitle : '')
     : isUrl
       ? (item.displayTitle || item.url?.slice(0, 60) || '')
-      : (item.content || '')
+      : (typeof item.content === 'string' ? item.content : '')
 
-  const summary = isUrl && item.content && item.content !== item.displayTitle
+  const summary = isUrl && item.content && typeof item.content === 'string' && item.content !== item.displayTitle
     ? item.content.slice(0, 80) + (item.content.length > 80 ? '…' : '')
     : ''
 
