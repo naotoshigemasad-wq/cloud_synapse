@@ -432,7 +432,7 @@ interface BubbleProps {
 
 function MessageBubble({ item, dark, bubbleBg, bubbleBorder, textPrimary, textSec, typeColors }: BubbleProps) {
   const isImage  = item.type === 'image'
-  const isVideo  = item.type === 'video' && item.platform === 'youtube'
+  const isVideo  = item.type === 'video'
   const isUrl    = !isImage && !isVideo && item.type !== 'note'
   const isNote   = item.type === 'note'
   const color    = typeColors[item.platform] || typeColors[isImage ? 'image' : ''] || typeColors['']
@@ -467,10 +467,10 @@ function MessageBubble({ item, dark, bubbleBg, bubbleBorder, textPrimary, textSe
 
         {/* YouTube iframe埋め込み */}
         {isVideo && ytId && (
-          <div style={{ marginTop:8, borderRadius:10, overflow:'hidden', aspectRatio:'16/9' }}>
+          <div style={{ marginTop:8, borderRadius:10, overflow:'hidden', position:'relative', paddingBottom:'56.25%', height:0 }}>
             <iframe
               src={`https://www.youtube.com/embed/${ytId}`}
-              style={{ width:'100%', height:'100%', border:'none' }}
+    s         tyle={{ position:'absolute', top:0, left:0, width:'100%', height:'100%', border:'none' }}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
             />
