@@ -154,6 +154,9 @@ export default function FeedPage() {
   const [notionToken,  setNotionToken]  = useState('')
   const [importing,    setImporting]    = useState(false)
   const [importResult, setImportResult] = useState<string|null>(null)
+  const [dateFrom,     setDateFrom]     = useState('')
+  const [dateTo,       setDateTo]       = useState('')
+  const [filterOpen,   setFilterOpen]   = useState(false)
 
   const listRef  = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -265,6 +268,14 @@ export default function FeedPage() {
   const typeColors    = dark ? typeColorDark : typeColorLight
   const detectedColor = typeColors[platform] || typeColors['']
   const showDetect    = input.trim().length > 0
+  const filteredItems = items.filter(item => {
+  if (!item.createdAt) return true
+  const d = new Date(item.createdAt)
+  if (dateFrom && d < new Date(dateFrom)) return false
+  if (dateTo   && d > new Date(dateTo + 'T23:59:59')) return false
+  return true
+  })
+  const hasFilter = dateFrom || dateTo
   if (status === 'loading') return <Loader dark={dark}/>
   const currentPf = platforms.find(p => p.key === selectedPf)
 
@@ -301,6 +312,13 @@ export default function FeedPage() {
           {isMobile ? 'C·SYNAPSE' : 'CLOUD SYNAPSE'}
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:isMobile?5:8 }}>
+          <button
+  onClick={() => setFilterOpen(f => !f)}
+  style={{ width:isMobile?28:32, height:isMobile?28:32, background:hasFilter?dark?'rgba(70,110,240,0.3)':'rgba(50,90,220,0.15)':'none', border:`0.5px solid ${hasFilter?'rgba(90,130,255,0.4)':border}`, borderRadius:8, cursor:'pointer', fontSize:12, color:hasFilter?dark?'rgba(160,200,255,0.9)':'rgba(40,80,200,0.9)':textSec, display:'flex', alignItems:'center', justifyContent:'center' }}
+  title="日付で絞り込む"
+>
+  🗓
+</button>
           <button onClick={toggleDark} style={{ width:isMobile?28:32, height:isMobile?28:32, background:'none', border:`0.5px solid ${border}`, borderRadius:8, cursor:'pointer', fontSize:isMobile?13:15, color:textSec, display:'flex', alignItems:'center', justifyContent:'center' }}>
             {dark ? '☀' : '🌙'}
           </button>
@@ -310,17 +328,42 @@ export default function FeedPage() {
           <button onClick={() => signOut({ callbackUrl:'/login' })} style={{ width:isMobile?28:32, height:isMobile?28:32, background:'none', border:`0.5px solid ${border}`, borderRadius:8, color:textSec, cursor:'pointer', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>╮</button>
         </div>
       </header>
-
+      {filterOpen && (
+  <div style={{ padding:isMobile?'10px 12px':'10px 16px', borderBottom:`0.5px solid ${border}`, background:dark?'rgba(10,15,35,0.8)':'rgba(235,240,255,0.8)', flexShrink:0, backdropFilter:'blur(8px)' }}>
+    <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+      <span style={{ fontSize:11, color:textSec, fontFamily:'"Space Mono",monospace', letterSpacing:'0.06em', flexShrink:0 }}>📅 期間</span>
+      <input
+        type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+        style={{ background:inputBg, border:`0.5px solid ${inputBorder}`, borderRadius:8, padding:'5px 10px', color:textPrimary, fontSize:12, outline:'none', cursor:'pointer' }}
+      />
+      <span style={{ fontSize:11, color:textSec }}>〜</span>
+      <input
+        type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+        style={{ background:inputBg, border:`0.5px solid ${inputBorder}`, borderRadius:8, padding:'5px 10px', color:textPrimary, fontSize:12, outline:'none', cursor:'pointer' }}
+      />
+      {hasFilter && (
+        <button onClick={() => { setDateFrom(''); setDateTo('') }} style={{ padding:'5px 10px', background:'none', border:`0.5px solid ${inputBorder}`, borderRadius:8, fontSize:11, color:textSec, cursor:'pointer' }}>
+          ✕ リセット
+        </button>
+      )}
+      <span style={{ fontSize:11, color:textSec, marginLeft:'auto' }}>
+        {hasFilter ? `${filteredItems.length} / ${items.length}件` : `${items.length}件`}
+      </span>
+    </div>
+  </div>
+)}
       {/* メッセージリスト */}
       <div ref={listRef} style={{ flex:1, overflowY:'auto', padding:isMobile?'14px 10px 6px':'20px 16px 8px', display:'flex', flexDirection:'column', gap:8 }}>
         {loadingItems && <div style={{ textAlign:'center', color:textSec, fontSize:12, fontFamily:'monospace', padding:40 }}>記憶を読み込んでいます...</div>}
-        {!loadingItems && items.length === 0 && (
+        {!loadingItems && filteredItems.length === 0 && (
           <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', padding:40 }}>
-            <div style={{ fontSize:28, marginBottom:10 }}>🌱</div>
-            <div style={{ fontSize:13, color:textSec, lineHeight:1.8 }}>最初の記憶を追加してみましょう。<br/>メモ・URL・画像など何でも保存できます。</div>
+          <div style={{ fontSize:28, marginBottom:10 }}>{hasFilter ? '🔍' : '🌱'}</div>
+          <div style={{ fontSize:13, color:textSec, lineHeight:1.8 }}>
+            {hasFilter ? '該当する記憶がありません。\n日付の範囲を変えてみてください。' : '最初の記憶を追加してみましょう。\nメモ・URL・画像など何でも保存できます。'}
           </div>
+        </div>
         )}
-        {items.map(item => (
+        {filteredItems.map(item => (
           <MessageBubble
             key={item.id} item={item} dark={dark} token={token} isMobile={isMobile}
             bubbleBg={bubbleBg} bubbleBorder={bubbleBorder}
