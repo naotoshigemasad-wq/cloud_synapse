@@ -25,7 +25,7 @@ function useDarkMode() {
 // ── テキスト改行処理（7文字超で単語境界で折り返し）────────────
 function formatText(text: string): string {
   if (!text) return ''
-  const chars = [...text]
+  const chars = Array.from(text)
   if (chars.length <= 7) return text
   const half = Math.ceil(chars.length / 2)
   // 句読点・スペース優先で折り返し位置を探す
