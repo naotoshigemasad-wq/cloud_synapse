@@ -139,6 +139,10 @@ export default function FeedPage() {
   const [sheetOpen,    setSheetOpen]    = useState(false)
   const [selectedPf,   setSelectedPf]   = useState<PlatformKey|null>(null)
   const [platforms,    setPlatforms]    = useState<Platform[]>(PLATFORMS)
+  const [notionModal,  setNotionModal]  = useState(false)
+  const [notionToken,  setNotionToken]  = useState('')
+  const [importing,    setImporting]    = useState(false)
+  const [importResult, setImportResult] = useState<string|null>(null)
 
   const listRef  = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -248,24 +252,83 @@ export default function FeedPage() {
     }
   }
 
-  function handleConnect(key: PlatformKey) {
-    setPlatforms(prev => prev.map(p => p.key === key ? { ...p, connected: true } : p))
-  }
-
-  function handleImport(key: PlatformKey) {
-    const pf = platforms.find(p => p.key === key)
-    if (!pf?.connected) return
-    const notif: Item = {
-      id: `import_${Date.now()}`, type: 'web_url',
-      displayTitle: `${pf.label}からインポート中...`,
-      summaryMemo: '', content: '', url: '', thumbnailUrl: '',
-      platform: key, source: 'import', embeddingAt: '',
-      createdAt: new Date().toISOString(), updatedAt: '', tags: [],
-    }
-    setItems(prev => [...prev, notif])
+function handleConnect(key: PlatformKey) {
+  if (key === 'notion') {
+    setNotionModal(true)
     setSheetOpen(false)
-    setSelectedPf(null)
+    return
   }
+  setPlatforms(prev => prev.map(p => p.key === key ? { ...p, connected: true } : p))
+}
+
+async function handleNotionConnect() {
+  if (!notionToken.trim() || !token) return
+  setImporting(true)
+  setImportResult(null)
+  try {
+    const GAS_URL = process.env.NEXT_PUBLIC_GAS_API_URL!
+    // トークンを保存
+    const saveRes = await fetch(`${GAS_URL}?path=/integrations/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        token,
+        path: '/integrations/token',
+        platform_key: 'notion',
+        access_token: notionToken.trim(),
+        refresh_token: '',
+        expires_at: '',
+      }),
+    })
+    const saveData = await saveRes.json()
+    if (saveData.error) throw new Error(saveData.error)
+
+    // インポート実行
+    const importRes = await fetch(`${GAS_URL}?path=/integrations/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        token,
+        path: '/integrations/import',
+        platform_key: 'notion',
+      }),
+    })
+    const importData = await importRes.json()
+    if (importData.error) throw new Error(importData.error)
+
+    const count = importData.imported || 0
+    setImportResult(`✓ ${count}件のページをインポートしました`)
+    setPlatforms(prev => prev.map(p => p.key === 'notion' ? { ...p, connected: true } : p))
+
+    // フィードを更新
+    getItems(token, {}).then(r => setItems(r.items || [])).catch(console.error)
+
+  } catch(e: any) {
+    setImportResult('✗ エラー: ' + (e.message || 'インポートに失敗しました'))
+  } finally {
+    setImporting(false)
+  }
+}
+
+function handleImport(key: PlatformKey) {
+  if (key === 'notion') {
+    setNotionModal(true)
+    setSheetOpen(false)
+    return
+  }
+  const pf = platforms.find(p => p.key === key)
+  if (!pf?.connected) return
+  const notif: Item = {
+    id: `import_${Date.now()}`, type: 'web_url',
+    displayTitle: `${pf.label}からインポート中...`,
+    summaryMemo: '', content: '', url: '', thumbnailUrl: '',
+    platform: key, source: 'import', embeddingAt: '',
+    createdAt: new Date().toISOString(), updatedAt: '', tags: [],
+  }
+  setItems(prev => [...prev, notif])
+  setSheetOpen(false)
+  setSelectedPf(null)
+}
 
   const { type, platform } = detectType(input)
   const typeColors    = dark ? typeColorDark : typeColorLight
@@ -415,6 +478,43 @@ export default function FeedPage() {
               {generating ? '生成中...' : 'Creative Wondering →'}
             </button>
             <button onClick={() => setThemeOpen(false)} style={{ width: '100%', padding: 10, background: 'none', border: 'none', color: textSec, fontSize: 13, cursor: 'pointer' }}>キャンセル</button>
+          </div>
+        </div>
+      )}
+      {/* Notion連携モーダル */}
+      {notionModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.65)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:50, padding:20 }} onClick={() => { setNotionModal(false); setImportResult(null) }}>
+          <div style={{ width:'100%', maxWidth:440, background:dark?'rgba(8,12,28,0.97)':'rgba(245,248,255,0.97)', border:`0.5px solid ${border}`, borderRadius:18, padding:'32px 28px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontFamily:'"Space Mono",monospace', fontSize:13, fontWeight:700, color:dark?'rgba(200,220,255,0.85)':'rgba(20,40,140,0.90)', letterSpacing:'0.12em', marginBottom:8 }}>◻ Notion 連携</div>
+            <p style={{ fontSize:12, color:textSec, lineHeight:1.8, marginBottom:16 }}>
+              Notion Integration Token を入力してください。<br/>
+              <a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" style={{ color:dark?'rgba(130,170,255,0.7)':'rgba(40,90,200,0.7)', fontSize:11 }}>notion.so/my-integrations</a> で作成できます。
+            </p>
+            <input
+              type="password"
+              value={notionToken}
+              onChange={e => setNotionToken(e.target.value)}
+              placeholder="secret_xxxxxxxxxxxx"
+              style={{ width:'100%', background:inputBg, border:`0.5px solid ${inputBorder}`, borderRadius:10, padding:'12px 16px', color:textPrimary, fontSize:13, outline:'none', fontFamily:'monospace', marginBottom:8, boxSizing:'border-box' }}
+              autoFocus
+            />
+            <p style={{ fontSize:11, color:textSec, lineHeight:1.7, marginBottom:16 }}>
+              ※ インポートしたいページでNotionを開き、<br/>
+              右上「…」→「接続先」→ 作成したインテグレーションを選択してください。
+            </p>
+            {importResult && (
+              <div style={{ fontSize:12, color: importResult.startsWith('✓') ? 'rgba(110,231,183,0.8)' : 'rgba(255,120,120,0.8)', marginBottom:12, padding:'8px 12px', background: importResult.startsWith('✓') ? 'rgba(110,231,183,0.08)' : 'rgba(255,100,100,0.08)', borderRadius:8 }}>
+                {importResult}
+              </div>
+            )}
+            <button
+              onClick={handleNotionConnect}
+              disabled={!notionToken.trim() || importing}
+              style={{ width:'100%', padding:'12px', background:dark?'rgba(70,110,250,0.5)':'rgba(50,90,220,0.7)', border:'0.5px solid rgba(90,130,255,0.45)', borderRadius:11, color:'white', fontSize:13, cursor:'pointer', marginBottom:10, opacity:(!notionToken.trim()||importing)?0.4:1 }}
+            >
+              {importing ? 'インポート中...' : 'インポート開始'}
+            </button>
+            <button onClick={() => { setNotionModal(false); setImportResult(null) }} style={{ width:'100%', padding:10, background:'none', border:'none', color:textSec, fontSize:12, cursor:'pointer' }}>キャンセル</button>
           </div>
         </div>
       )}
