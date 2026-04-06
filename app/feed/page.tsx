@@ -248,9 +248,9 @@ if (key === 'youtube' || key === 'google') {
   setSheetOpen(false)
   const platformKey = key === 'google' ? 'google_docs' : 'youtube'
   const googleAccessToken = (session as any)?.googleAccessToken || ''
-  console.log('googleAccessToken:', googleAccessToken ? googleAccessToken.slice(0,20) + '...' : 'なし')
+  console.log('token:', googleAccessToken ? googleAccessToken.slice(0,20) : 'なし')
   if (!googleAccessToken) {
-    alert('Googleアカウントのアクセストークンが取得できません。再ログインしてください。')
+    alert('再ログインしてください。')
     return
   }
   const notif: Item = {
@@ -263,24 +263,24 @@ if (key === 'youtube' || key === 'google') {
   setItems(prev => [...prev, notif])
   try {
     const GAS_URL = process.env.NEXT_PUBLIC_GAS_API_URL!
-    const res = await fetch(`${GAS_URL}?path=/integrations/import`, {
+    const res = await fetch(`${GAS_URL}?path=/integrations/token`, {
       method:'POST',
       headers:{ 'Content-Type':'text/plain' },
-      redirect: 'follow',
       body: JSON.stringify({
         token,
-        path:'/integrations/import',
+        path: '/integrations/token',
         platform_key: platformKey,
-        google_access_token: googleAccessToken,  // ← ユーザーのトークンを渡す
+        google_access_token: googleAccessToken,
       }),
     })
     const data = await res.json()
+    console.log('import result:', data)
     setItems(prev => prev.filter(i => i.id !== notif.id))
     if (data.error) throw new Error(data.error)
     const count = data.imported || 0
     const result: Item = {
       id:`result_${Date.now()}`, type:'note',
-      displayTitle:`${pf.label} ${count}件インポート完了`,
+      displayTitle:`✓ ${pf.label} ${count}件インポート完了`,
       summaryMemo:'', content:'', url:'', thumbnailUrl:'',
       platform:key, source:'import', embeddingAt:'',
       createdAt:new Date().toISOString(), updatedAt:'', tags:[],
