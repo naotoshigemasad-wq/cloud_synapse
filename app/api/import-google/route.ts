@@ -57,7 +57,8 @@ export async function POST(req: NextRequest) {
       }),
     })
 
-    const text = await gasRes.text()
+const text = await gasRes.text()
+    console.log('GAS response:', text.slice(0, 300))
     try {
       return NextResponse.json(JSON.parse(text))
     } catch {
