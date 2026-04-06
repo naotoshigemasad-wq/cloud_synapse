@@ -244,25 +244,34 @@ export default function FeedPage() {
     setSheetOpen(false); setSelectedPf(null)
   }
 
-  async function handleNotionConnect() {
-    if (!notionToken.trim() || !token) return
-    setImporting(true); setImportResult(null)
-    try {
-      const GAS_URL = process.env.NEXT_PUBLIC_GAS_API_URL!
-      const res = await fetch(`${GAS_URL}?path=/integrations/token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ token, path:'/integrations/token', platform_key:'notion', access_token:notionToken.trim(), refresh_token:'', expires_at:'' }),
-      })
-      const data = await res.json()
-      if (data.error) throw new Error(data.error)
-      setImportResult(`✓ ${data.imported || 0}件のページをインポートしました`)
-      setPlatforms(prev => prev.map(p => p.key === 'notion' ? { ...p, connected: true } : p))
-      getItems(token, {}).then(r => setItems(r.items || [])).catch(console.error)
-    } catch(e: any) {
+async function handleNotionConnect() {
+  if (!notionToken.trim() || !token) return
+  setImporting(true); setImportResult(null)
+  try {
+    const GAS_URL = process.env.NEXT_PUBLIC_GAS_API_URL!
+    const controller = new AbortController()
+    const timeoutId  = setTimeout(() => controller.abort(), 300000)  // 5分
+
+    const res = await fetch(`${GAS_URL}?path=/integrations/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ token, path:'/integrations/token', platform_key:'notion', access_token:notionToken.trim(), refresh_token:'', expires_at:'' }),
+      signal: controller.signal,
+    })
+    clearTimeout(timeoutId)
+    const data = await res.json()
+    if (data.error) throw new Error(data.error)
+    setImportResult(`✓ ${data.imported || 0}件のページをインポートしました`)
+    setPlatforms(prev => prev.map(p => p.key === 'notion' ? { ...p, connected: true } : p))
+    getItems(token, {}).then(r => setItems(r.items || [])).catch(console.error)
+  } catch(e: any) {
+    if (e.name === 'AbortError') {
+      setImportResult('✗ タイムアウト：件数が多い場合はGASで直接実行してください')
+    } else {
       setImportResult('✗ エラー: ' + (e.message || 'インポートに失敗しました'))
-    } finally { setImporting(false) }
-  }
+    }
+  } finally { setImporting(false) }
+}
 
   const { type, platform } = detectType(input)
   const typeColors    = dark ? typeColorDark : typeColorLight

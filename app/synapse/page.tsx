@@ -252,12 +252,18 @@ function SynapseInner() {
       const phi = Math.PI * (Math.sqrt(5) - 1)
       const R   = isMobile ? 340 : 400
       const mediaMeshes: any[] = []
-      for (let i = 0; i < mediaItems.length; i++) {
-        const item = mediaItems[i]
+// テーマに関連するメディアを優先、残りからランダム最大5件を追加
+      const relatedIds   = new Set(keywords.flatMap(kw => kw.sourceItemIds || []))
+      const relatedMedia = mediaItems.filter(m => relatedIds.has(m.id))
+      const randomMedia  = mediaItems.filter(m => !relatedIds.has(m.id)).sort(() => Math.random() - 0.5).slice(0, 5)
+      const selectedMedia = [...relatedMedia, ...randomMedia]
+
+      for (let i = 0; i < selectedMedia.length; i++) {
+        const item = selectedMedia[i]
         try {
           const tex = await loadImageTexture(THREE, item.thumbnailUrl)
           const mat = new THREE.MeshBasicMaterial({ map:tex, transparent:true, depthWrite:false, side:THREE.DoubleSide, opacity:0 })
-          const y   = 1 - ((i + 0.5) / mediaItems.length) * 2
+          const y   = 1 - ((i + 0.5) / selectedMedia.length) * 2
           const rad = Math.sqrt(Math.max(0, 1 - y*y))
           const th  = phi * (i + 50)
           const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat)
