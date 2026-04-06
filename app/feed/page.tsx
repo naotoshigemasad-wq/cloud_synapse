@@ -248,7 +248,8 @@ if (key === 'youtube' || key === 'google') {
   setSheetOpen(false)
   const platformKey = key === 'google' ? 'google_docs' : 'youtube'
   const googleAccessToken = (session as any)?.googleAccessToken || ''
-  console.log('token:', googleAccessToken ? googleAccessToken.slice(0,20) : 'なし')
+  console.log('googleAccessToken length:', googleAccessToken.length)
+  console.log('googleAccessToken:', googleAccessToken.slice(0, 30))
   if (!googleAccessToken) {
     alert('再ログインしてください。')
     return
