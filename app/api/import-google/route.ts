@@ -14,6 +14,10 @@ export async function POST(req: NextRequest) {
     const refreshToken = (session as any).googleRefreshToken as string
     let accessToken    = (session as any).googleAccessToken  as string
 
+    // デバッグログ
+    console.log('refreshToken:', refreshToken ? refreshToken.slice(0,20) : 'なし')
+    console.log('accessToken:', accessToken ? accessToken.slice(0,20) : 'なし')
+    
     // リフレッシュトークンで新しいアクセストークンを取得
     if (refreshToken) {
       const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
