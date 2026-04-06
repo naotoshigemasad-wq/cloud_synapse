@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     // デバッグログ
     console.log('refreshToken:', refreshToken ? refreshToken.slice(0,20) : 'なし')
     console.log('accessToken:', accessToken ? accessToken.slice(0,20) : 'なし')
-    
+
     // リフレッシュトークンで新しいアクセストークンを取得
     if (refreshToken) {
       const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -65,3 +65,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
 }
+
+const refreshData = await refreshRes.json()
+      console.log('refreshData:', JSON.stringify(refreshData).slice(0, 100))
+      if (refreshData.access_token) {
+        accessToken = refreshData.access_token
+        console.log('new accessToken:', accessToken.slice(0, 20))
+      }
