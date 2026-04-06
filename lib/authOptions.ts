@@ -51,6 +51,7 @@ export const authOptions: NextAuthOptions = {
       session.userId            = token.userId            as string
       session.userDisplay       = token.userDisplay       as string
       session.googleAccessToken = token.googleAccessToken as string
+      session.googleRefreshToken = token.googleRefreshToken as string
       return session
     },
   },

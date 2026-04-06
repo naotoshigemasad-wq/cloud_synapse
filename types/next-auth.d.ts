@@ -6,6 +6,7 @@ declare module 'next-auth' {
     userId:            string
     userDisplay:       string
     googleAccessToken: string
+    googleRefreshToken?: string
   }
 }
 
@@ -23,6 +24,6 @@ declare module 'next-auth/jwt' {
 declare module 'next-auth' {
   interface Session {
     gasToken?: string
-    googleAccessToken?: string  // ← 追加
+    googleAccessToken?: string  
   }
 }

@@ -1,17 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/authOptions'
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { gasToken, platformKey, googleAccessToken } = body
+    const { gasToken, platformKey } = body
 
-    if (!googleAccessToken) {
+    // サーバーサイドでセッションを取得
+    const session = await getServerSession(authOptions)
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const refreshToken = (session as any).googleRefreshToken as string
+    let accessToken    = (session as any).googleAccessToken  as string
+
+    // リフレッシュトークンで新しいアクセストークンを取得
+    if (refreshToken) {
+      const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id:     process.env.GOOGLE_CLIENT_ID!,
+          client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+          refresh_token: refreshToken,
+          grant_type:    'refresh_token',
+        }),
+      })
+      const refreshData = await refreshRes.json()
+      if (refreshData.access_token) {
+        accessToken = refreshData.access_token
+      }
+    }
+
+    if (!accessToken) {
       return NextResponse.json({ error: 'Google access token not found. Please re-login.' }, { status: 400 })
     }
 
     const GAS_URL = process.env.NEXT_PUBLIC_GAS_API_URL!
-    // pathをURLパラメータに含める（GASはe.parameter.pathで取得するため）
-    const url = `${GAS_URL}?path=/integrations/token`
+    const url     = `${GAS_URL}?path=/integrations/token`
 
     const gasRes = await fetch(url, {
       method: 'POST',
@@ -21,7 +47,7 @@ export async function POST(req: NextRequest) {
         token: gasToken,
         path: '/integrations/token',
         platform_key: platformKey,
-        google_access_token: googleAccessToken,
+        google_access_token: accessToken,
       }),
     })
 
