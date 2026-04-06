@@ -249,7 +249,7 @@ if (key === 'youtube' || key === 'google') {
   const platformKey = key === 'google' ? 'google_docs' : 'youtube'
   const googleAccessToken = (session as any)?.googleAccessToken || ''
   console.log('googleAccessToken length:', googleAccessToken.length)
-  console.log('googleAccessToken:', googleAccessToken.slice(0, 30))
+  console.log('googleAccessToken FULL:', googleAccessToken)
   if (!googleAccessToken) {
     alert('再ログインしてください。')
     return
