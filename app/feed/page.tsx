@@ -230,19 +230,71 @@ export default function FeedPage() {
     } catch(e) { console.error(e); setGenerating(false) }
   }
 
-  function handleConnect(key: PlatformKey) {
-    if (key === 'notion') { setNotionModal(true); setSheetOpen(false); return }
+function handleConnect(key: PlatformKey) {
+  if (key === 'notion') { setNotionModal(true); setSheetOpen(false); return }
+  // YouTube・Googleは既にGoogleログイン済みなので連携済みとしてインポートへ
+  if (key === 'youtube' || key === 'google') {
     setPlatforms(prev => prev.map(p => p.key === key ? { ...p, connected: true } : p))
+    return
+  }
+  setPlatforms(prev => prev.map(p => p.key === key ? { ...p, connected: true } : p))
+}
+
+async function handleImport(key: PlatformKey) {
+  if (key === 'notion') { setNotionModal(true); setSheetOpen(false); return }
+
+  const pf = platforms.find(p => p.key === key)
+  if (!pf) return
+
+  // YouTube・Google は直接インポート実行
+  if (key === 'youtube' || key === 'google') {
+    setSheetOpen(false)
+    const platformKey = key === 'google' ? 'google_docs' : 'youtube'
+    const notif: Item = {
+      id:`import_${Date.now()}`, type:'web_url',
+      displayTitle:`${pf.label}からインポート中...`,
+      summaryMemo:'', content:'', url:'', thumbnailUrl:'',
+      platform:key, source:'import', embeddingAt:'',
+      createdAt:new Date().toISOString(), updatedAt:'', tags:[],
+    }
+    setItems(prev => [...prev, notif])
+    try {
+      const GAS_URL = process.env.NEXT_PUBLIC_GAS_API_URL!
+      const res = await fetch(`${GAS_URL}?path=/integrations/import`, {
+        method:'POST',
+        headers:{ 'Content-Type':'text/plain' },
+        body: JSON.stringify({ token, path:'/integrations/import', platform_key: platformKey }),
+      })
+      const data = await res.json()
+      setItems(prev => prev.filter(i => i.id !== notif.id))
+      if (data.error) throw new Error(data.error)
+      const count = data.imported || 0
+      const result: Item = {
+        id:`result_${Date.now()}`, type:'note',
+        displayTitle:`${pf.label} ${count}件インポート完了`,
+        summaryMemo:'', content:'', url:'', thumbnailUrl:'',
+        platform:key, source:'import', embeddingAt:'',
+        createdAt:new Date().toISOString(), updatedAt:'', tags:[],
+      }
+      setItems(prev => [...prev, result])
+      getItems(token, {}).then(r => setItems(r.items || [])).catch(console.error)
+    } catch(e: any) {
+      setItems(prev => prev.filter(i => i.id !== notif.id))
+      alert('インポートエラー: ' + e.message)
+    }
+    return
   }
 
-  function handleImport(key: PlatformKey) {
-    if (key === 'notion') { setNotionModal(true); setSheetOpen(false); return }
-    const pf = platforms.find(p => p.key === key)
-    if (!pf?.connected) return
-    const notif: Item = { id:`import_${Date.now()}`, type:'web_url', displayTitle:`${pf.label}からインポート中...`, summaryMemo:'', content:'', url:'', thumbnailUrl:'', platform:key, source:'import', embeddingAt:'', createdAt:new Date().toISOString(), updatedAt:'', tags:[] }
-    setItems(prev => [...prev, notif])
-    setSheetOpen(false); setSelectedPf(null)
+  const notif: Item = {
+    id:`import_${Date.now()}`, type:'web_url',
+    displayTitle:`${pf.label}からインポート中...`,
+    summaryMemo:'', content:'', url:'', thumbnailUrl:'',
+    platform:key, source:'import', embeddingAt:'',
+    createdAt:new Date().toISOString(), updatedAt:'', tags:[],
   }
+  setItems(prev => [...prev, notif])
+  setSheetOpen(false); setSelectedPf(null)
+}
 
 async function handleNotionConnect() {
   if (!notionToken.trim() || !token) return
