@@ -353,7 +353,7 @@ function SynapseInner() {
 
       // カメラオートパイロット
       const SHOTS_PER_CYCLE = keywords.length + 5
-      let shotCount = 0, fTimer = 0, fDur = isMobile ? 220 : 300
+      let shotCount = 0, fTimer = 0, fDur = isMobile ? 340 : 420
       const dpos = new THREE.Vector3(0, 80, isMobile ? 620 : 520)
       const dtgt = new THREE.Vector3(0, 0, 0)
       const ctgt = new THREE.Vector3(0, 0, 0)
@@ -371,25 +371,25 @@ function SynapseInner() {
           const mi = mediaMeshes[Math.floor(Math.random() * mediaMeshes.length)]
           const p  = mi.position, a = Math.random()*Math.PI*2
           dpos.set(p.x+Math.cos(a)*(isMobile?80:120), p.y+30, p.z+Math.sin(a)*(isMobile?80:120))
-          dtgt.copy(p); fDur=isMobile?180:480; setShotLabel('MEDIA')
+          dtgt.copy(p); fDur=isMobile?300:600; setShotLabel('MEDIA')
           return
         }
         if (r < .35) {
           const a = Math.random()*Math.PI*2
           dpos.set(Math.cos(a)*(isMobile?480:580),(Math.random()-.5)*230,Math.sin(a)*(isMobile?480:580))
-          dtgt.set(0,0,0); fDur=isMobile?200:480; setShotLabel('WIDE')
+          dtgt.set(0,0,0); fDur=isMobile?320:660; setShotLabel('WIDE')
         } else if (r < .65) {
           const p = new THREE.Vector3(kw.posX||0, kw.posY||0, kw.posZ||0)
           const a = Math.random()*Math.PI*2, el=(Math.random()-.5)*Math.PI*.5
           const d = (isMobile?28:36)+kw.score*(isMobile?48:62)
           dpos.set(p.x+Math.cos(a)*Math.cos(el)*d, p.y+Math.sin(el)*d*.5, p.z+Math.sin(a)*Math.cos(el)*d)
-          dtgt.copy(p); fDur=isMobile?200:540; setShotLabel('CLOSE')
+          dtgt.copy(p); fDur=isMobile?320:660; setShotLabel('CLOSE')
         } else {
           const p = new THREE.Vector3(kw.posX||0, kw.posY||0, kw.posZ||0)
           const a = Math.random()*Math.PI*2, el=(Math.random()-.5)*Math.PI*.7
           const d = (isMobile?60:75)+kw.score*(isMobile?120:155)
           dpos.set(p.x+Math.cos(a)*Math.cos(el)*d, p.y+Math.sin(el)*d*.48, p.z+Math.sin(a)*Math.cos(el)*d)
-          dtgt.copy(p); fDur=isMobile?180:480; setShotLabel('FLY')
+          dtgt.copy(p); fDur=isMobile?300:600; setShotLabel('FLY')
         }
       }
 
