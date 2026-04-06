@@ -35,8 +35,7 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, account }) {
     // Googleログイン時にaccess_tokenを保存
     if (account?.provider === 'google') {
-      token.googleAccessToken = account.access_token
-    }
+    token.googleAccessToken = account.access_token ?? ''    }
     return token
   },
   async session({ session, token }) {
