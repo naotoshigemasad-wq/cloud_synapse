@@ -262,12 +262,15 @@ if (key === 'youtube' || key === 'google') {
   }
   setItems(prev => [...prev, notif])
   try {
-const GAS_URL = process.env.NEXT_PUBLIC_GAS_API_URL!
-    // google_access_tokenはURLパラメータで渡す（POSTリダイレクト後もGETで届く）
-    const params = new URLSearchParams({
-      path: '/integrations/token',
-      platform_key: platformKey,
-      google_access_token: googleAccessToken,
+    const GAS_URL = process.env.NEXT_PUBLIC_GAS_API_URL!
+    const res = await fetch('/api/import/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        gasToken: token,
+        platformKey,
+        googleAccessToken,
+      }),
     })
     const res = await fetch(`${GAS_URL}?${params.toString()}`, {
       method: 'POST',
