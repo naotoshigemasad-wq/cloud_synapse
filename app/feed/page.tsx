@@ -132,7 +132,7 @@ function GlowGridIcon({ size = 18 }: { size?: number }) {
 }
 
 export default function FeedPage() {
-  const { status } = useSession()
+  const { data: session, status } = useSession()
   const router = useRouter()
   const { token, ready } = useGasToken()
   const { dark, toggle: toggleDark } = useDarkMode()
@@ -149,7 +149,9 @@ export default function FeedPage() {
   const [isDragging,   setIsDragging]   = useState(false)
   const [sheetOpen,    setSheetOpen]    = useState(false)
   const [selectedPf,   setSelectedPf]   = useState<PlatformKey|null>(null)
-  const [platforms,    setPlatforms]    = useState<Platform[]>(PLATFORMS)
+  const [platforms, setPlatforms] = useState<Platform[]>(
+PLATFORMS.map(p => p.key === 'youtube' || p.key === 'google' ? { ...p, connected: true } : p)
+)
   const [notionModal,  setNotionModal]  = useState(false)
   const [notionToken,  setNotionToken]  = useState('')
   const [importing,    setImporting]    = useState(false)
@@ -232,18 +234,10 @@ export default function FeedPage() {
 
 function handleConnect(key: PlatformKey) {
   if (key === 'notion') { setNotionModal(true); setSheetOpen(false); return }
-  // YouTube・Googleは既にGoogleログイン済みなので連携済みとしてインポートへ
-  if (key === 'youtube' || key === 'google') {
-    setPlatforms(prev => prev.map(p => p.key === key ? { ...p, connected: true } : p))
-    return
-  }
   setPlatforms(prev => prev.map(p => p.key === key ? { ...p, connected: true } : p))
 }
 
 async function handleImport(key: PlatformKey) {
-  // useSessionの戻り値を拡張
-  const { data: session, status } = useSession()
-
   if (key === 'notion') { setNotionModal(true); setSheetOpen(false); return }
 
   const pf = platforms.find(p => p.key === key)
