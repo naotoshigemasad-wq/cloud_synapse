@@ -19,3 +19,10 @@ declare module 'next-auth/jwt' {
     googleExpiresAt:    number
   }
 }
+
+declare module 'next-auth' {
+  interface Session {
+    gasToken?: string
+    googleAccessToken?: string  // ← 追加
+  }
+}

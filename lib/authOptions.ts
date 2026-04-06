@@ -33,6 +33,19 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     async jwt({ token, account }) {
+    // Googleログイン時にaccess_tokenを保存
+    if (account?.provider === 'google') {
+      token.googleAccessToken = account.access_token
+    }
+    return token
+  },
+  async session({ session, token }) {
+    // セッションにgoogleAccessTokenを含める
+    (session as any).googleAccessToken = token.googleAccessToken
+    // 既存のgasTokenの処理はそのまま
+    return session
+  },
+    async jwt({ token, account }) {
       if (account?.id_token) {
         // GAS に Google ID トークンを渡して JWT を取得
         try {

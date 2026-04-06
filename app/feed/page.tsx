@@ -241,49 +241,62 @@ function handleConnect(key: PlatformKey) {
 }
 
 async function handleImport(key: PlatformKey) {
+  // useSessionの戻り値を拡張
+  const { data: session, status } = useSession()
+
   if (key === 'notion') { setNotionModal(true); setSheetOpen(false); return }
 
   const pf = platforms.find(p => p.key === key)
   if (!pf) return
 
   // YouTube・Google は直接インポート実行
-  if (key === 'youtube' || key === 'google') {
-    setSheetOpen(false)
-    const platformKey = key === 'google' ? 'google_docs' : 'youtube'
-    const notif: Item = {
-      id:`import_${Date.now()}`, type:'web_url',
-      displayTitle:`${pf.label}からインポート中...`,
+if (key === 'youtube' || key === 'google') {
+  setSheetOpen(false)
+  const platformKey = key === 'google' ? 'google_docs' : 'youtube'
+  const googleAccessToken = (session as any)?.googleAccessToken || ''
+  if (!googleAccessToken) {
+    alert('Googleアカウントのアクセストークンが取得できません。再ログインしてください。')
+    return
+  }
+  const notif: Item = {
+    id:`import_${Date.now()}`, type:'note',
+    displayTitle:`${pf.label}からインポート中...`,
+    summaryMemo:'', content:'', url:'', thumbnailUrl:'',
+    platform:key, source:'import', embeddingAt:'',
+    createdAt:new Date().toISOString(), updatedAt:'', tags:[],
+  }
+  setItems(prev => [...prev, notif])
+  try {
+    const GAS_URL = process.env.NEXT_PUBLIC_GAS_API_URL!
+    const res = await fetch(`${GAS_URL}?path=/integrations/import`, {
+      method:'POST',
+      headers:{ 'Content-Type':'text/plain' },
+      body: JSON.stringify({
+        token,
+        path:'/integrations/import',
+        platform_key: platformKey,
+        google_access_token: googleAccessToken,  // ← ユーザーのトークンを渡す
+      }),
+    })
+    const data = await res.json()
+    setItems(prev => prev.filter(i => i.id !== notif.id))
+    if (data.error) throw new Error(data.error)
+    const count = data.imported || 0
+    const result: Item = {
+      id:`result_${Date.now()}`, type:'note',
+      displayTitle:`${pf.label} ${count}件インポート完了`,
       summaryMemo:'', content:'', url:'', thumbnailUrl:'',
       platform:key, source:'import', embeddingAt:'',
       createdAt:new Date().toISOString(), updatedAt:'', tags:[],
     }
-    setItems(prev => [...prev, notif])
-    try {
-      const GAS_URL = process.env.NEXT_PUBLIC_GAS_API_URL!
-      const res = await fetch(`${GAS_URL}?path=/integrations/import`, {
-        method:'POST',
-        headers:{ 'Content-Type':'text/plain' },
-        body: JSON.stringify({ token, path:'/integrations/import', platform_key: platformKey }),
-      })
-      const data = await res.json()
-      setItems(prev => prev.filter(i => i.id !== notif.id))
-      if (data.error) throw new Error(data.error)
-      const count = data.imported || 0
-      const result: Item = {
-        id:`result_${Date.now()}`, type:'note',
-        displayTitle:`${pf.label} ${count}件インポート完了`,
-        summaryMemo:'', content:'', url:'', thumbnailUrl:'',
-        platform:key, source:'import', embeddingAt:'',
-        createdAt:new Date().toISOString(), updatedAt:'', tags:[],
-      }
-      setItems(prev => [...prev, result])
-      getItems(token, {}).then(r => setItems(r.items || [])).catch(console.error)
-    } catch(e: any) {
-      setItems(prev => prev.filter(i => i.id !== notif.id))
-      alert('インポートエラー: ' + e.message)
-    }
-    return
+    setItems(prev => [...prev, result])
+    getItems(token, {}).then(r => setItems(r.items || [])).catch(console.error)
+  } catch(e: any) {
+    setItems(prev => prev.filter(i => i.id !== notif.id))
+    alert('インポートエラー: ' + e.message)
   }
+  return
+}
 
   const notif: Item = {
     id:`import_${Date.now()}`, type:'web_url',
