@@ -42,8 +42,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Google access token not found. Please re-login.' }, { status: 400 })
     }
 
-    const GAS_URL = process.env.NEXT_PUBLIC_GAS_API_URL!
-    const url     = `${GAS_URL}?path=/integrations/token`
+const GAS_URL = process.env.NEXT_PUBLIC_GAS_API_URL!
+    // URLパラメータにも含める（POSTリダイレクト後のGETでも届くように）
+    const params = new URLSearchParams({
+      path:                 '/integrations/token',
+      platform_key:         platformKey,
+      google_access_token:  accessToken,
+    })
+    const url = `${GAS_URL}?${params.toString()}`
 
     const gasRes = await fetch(url, {
       method: 'POST',
