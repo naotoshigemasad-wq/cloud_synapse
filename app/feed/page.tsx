@@ -272,16 +272,6 @@ if (key === 'youtube' || key === 'google') {
         googleAccessToken,
       }),
     })
-    const res = await fetch(`${GAS_URL}?${params.toString()}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({
-        token,
-        path: '/integrations/token',
-        platform_key: platformKey,
-        google_access_token: googleAccessToken,
-      }),
-    })
     const data = await res.json()
     console.log('import result:', data)
     setItems(prev => prev.filter(i => i.id !== notif.id))
