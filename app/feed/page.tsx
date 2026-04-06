@@ -248,6 +248,7 @@ if (key === 'youtube' || key === 'google') {
   setSheetOpen(false)
   const platformKey = key === 'google' ? 'google_docs' : 'youtube'
   const googleAccessToken = (session as any)?.googleAccessToken || ''
+  console.log('googleAccessToken:', googleAccessToken ? googleAccessToken.slice(0,20) + '...' : 'なし')
   if (!googleAccessToken) {
     alert('Googleアカウントのアクセストークンが取得できません。再ログインしてください。')
     return
@@ -265,6 +266,7 @@ if (key === 'youtube' || key === 'google') {
     const res = await fetch(`${GAS_URL}?path=/integrations/import`, {
       method:'POST',
       headers:{ 'Content-Type':'text/plain' },
+      redirect: 'follow',
       body: JSON.stringify({
         token,
         path:'/integrations/import',
