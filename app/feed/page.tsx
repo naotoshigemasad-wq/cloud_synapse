@@ -263,7 +263,7 @@ if (key === 'youtube' || key === 'google') {
   setItems(prev => [...prev, notif])
   try {
     const GAS_URL = process.env.NEXT_PUBLIC_GAS_API_URL!
-    const res = await fetch('/api/import/google', {
+    const res = await fetch('/api/import-google', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
