@@ -6,11 +6,14 @@ export async function POST(req: NextRequest) {
     const { gasToken, platformKey, googleAccessToken } = body
 
     if (!googleAccessToken) {
-      return NextResponse.json({ error: 'Google access token not found' }, { status: 400 })
+      return NextResponse.json({ error: 'Google access token not found. Please re-login.' }, { status: 400 })
     }
 
     const GAS_URL = process.env.NEXT_PUBLIC_GAS_API_URL!
-    const gasRes  = await fetch(GAS_URL, {
+    // pathをURLパラメータに含める（GASはe.parameter.pathで取得するため）
+    const url = `${GAS_URL}?path=/integrations/token`
+
+    const gasRes = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
       redirect: 'follow',
@@ -26,7 +29,7 @@ export async function POST(req: NextRequest) {
     try {
       return NextResponse.json(JSON.parse(text))
     } catch {
-      return NextResponse.json({ error: 'GAS response error: ' + text.slice(0, 100) })
+      return NextResponse.json({ error: 'GAS error: ' + text.slice(0, 200) })
     }
   } catch(e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
