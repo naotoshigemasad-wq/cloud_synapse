@@ -472,7 +472,7 @@ function SynapseInner() {
   const btnBorder = dark ? 'rgba(90,115,220,0.22)' : 'rgba(60,90,200,0.22)'
 
   return (
-    <div style={{ position:'relative', width:'100vw', height:'100vh', background:bgColor, overflow:'hidden' }}>
+    <div style={{ position:'relative', width:'100vw', height:'100dvh', minHeight:'-webkit-fill-available', background:bgColor, overflow:'hidden' }}>
       <canvas ref={canvasRef} style={{ position:'absolute', inset:0, width:'100%', height:'100%', touchAction:'none' }}/>
 
       {/* ローディング */}

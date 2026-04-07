@@ -367,7 +367,7 @@ async function handleNotionConnect() {
 
   return (
     <div
-      style={{ display:'flex', flexDirection:'column', height:'100vh', background:bg, overflow:'hidden', position:'relative', transition:'background 0.2s' }}
+      style={{ display:'flex', flexDirection:'column', height:'100dvh', minHeight:'-webkit-fill-available', background:bg, overflow:'hidden', position:'relative', transition:'background 0.2s' }}
       onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
     >
       {isDragging && (
@@ -566,9 +566,10 @@ async function handleNotionConnect() {
       )}
 
       <style>{`
-        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-        @keyframes loading { from { transform: translateX(-100%) } to { transform: translateX(200%) } }
-      `}</style>
+  * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+  @keyframes loading { from { transform: translateX(-100%) } to { transform: translateX(200%) } }
+  html, body { height: -webkit-fill-available; }
+`}</style>
     </div>
   )
 }
