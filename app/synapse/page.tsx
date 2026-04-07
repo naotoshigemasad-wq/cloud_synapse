@@ -55,33 +55,57 @@ function getFontConfig(fontKey: string, dark: boolean) {
   return { ...base, ...(FONT_CONFIG_LIGHT[fontKey] || {}) }
 }
 
-function drawKeyword(text: string, fontKey: string, dark: boolean, scale = 1): HTMLCanvasElement {
-  const cfg = getFontConfig(fontKey, dark)
-  const cv  = document.createElement('canvas')
-  cv.width = 512; cv.height = 128
+function drawKeyword(text: string, fontKey: string, dark: boolean, scale = 1, wrap = false): HTMLCanvasElement {
+  const cfg      = getFontConfig(fontKey, dark)
+  const chars    = Array.from(text)
+  const charCount = chars.length
+
+  // 10文字超かつwrap=trueのとき2行に分割
+  const lines: string[] = []
+  if (wrap && charCount > 9) {
+    const half = Math.ceil(charCount / 2)
+    lines.push(chars.slice(0, half).join(''))
+    lines.push(chars.slice(half).join(''))
+  } else {
+    lines.push(text)
+  }
+
+  const isTwo = lines.length === 2
+  const cv    = document.createElement('canvas')
+  cv.width  = 512
+  cv.height = isTwo ? 200 : 128
   const ctx = cv.getContext('2d')!
-  ctx.clearRect(0, 0, 512, 128)
-  const charCount = Array.from(text).length
-  const fs = Math.min(52, Math.max(28, Math.floor(440 / charCount))) * scale
+  ctx.clearRect(0, 0, cv.width, cv.height)
+
+  const maxCharsPerLine = Math.max(...lines.map(l => Array.from(l).length))
+  const fs = Math.min(52, Math.max(24, Math.floor(440 / maxCharsPerLine))) * scale
+
   ctx.save()
   ctx.font         = `${cfg.style} ${cfg.weight} ${fs}px ${cfg.font}`
   ctx.textBaseline = 'middle'; ctx.textAlign = 'center'
   ctx.globalAlpha  = cfg.alpha
   ctx.shadowBlur   = cfg.shadowBlur; ctx.shadowColor = cfg.shadowColor
-  if (cfg.letterSpacing !== 0) {
-    const chars  = Array.from(text)
-    const widths = chars.map(c => ctx.measureText(c).width)
-    const total  = widths.reduce((a, b) => a + b, 0) + cfg.letterSpacing * (chars.length - 1)
-    let x = 256 - total / 2
-    chars.forEach((c, i) => {
-      if (cfg.outline) { ctx.strokeStyle = cfg.shadowColor; ctx.lineWidth = 1.5; ctx.strokeText(c, x + widths[i]/2, 64) }
-      ctx.fillStyle = cfg.color; ctx.fillText(c, x + widths[i]/2, 64)
-      x += widths[i] + cfg.letterSpacing
-    })
-  } else {
-    if (cfg.outline) { ctx.strokeStyle = cfg.shadowColor; ctx.lineWidth = 1.5; ctx.strokeText(text, 256, 64) }
-    ctx.fillStyle = cfg.color; ctx.fillText(text, 256, 64)
-  }
+
+  const lineH  = fs * 1.35
+  const startY = isTwo ? (cv.height / 2) - lineH * 0.5 : cv.height / 2
+
+  lines.forEach((line, li) => {
+    const y = startY + li * lineH
+    if (cfg.letterSpacing !== 0) {
+      const lchars  = Array.from(line)
+      const widths  = lchars.map(c => ctx.measureText(c).width)
+      const total   = widths.reduce((a, b) => a + b, 0) + cfg.letterSpacing * (lchars.length - 1)
+      let x = 256 - total / 2
+      lchars.forEach((c, i) => {
+        if (cfg.outline) { ctx.strokeStyle = cfg.shadowColor; ctx.lineWidth = 1.5; ctx.strokeText(c, x + widths[i]/2, y) }
+        ctx.fillStyle = cfg.color; ctx.fillText(c, x + widths[i]/2, y)
+        x += widths[i] + cfg.letterSpacing
+      })
+    } else {
+      if (cfg.outline) { ctx.strokeStyle = cfg.shadowColor; ctx.lineWidth = 1.5; ctx.strokeText(line, 256, y) }
+      ctx.fillStyle = cfg.color; ctx.fillText(line, 256, y)
+    }
+  })
   ctx.restore()
   return cv
 }
@@ -252,18 +276,12 @@ function SynapseInner() {
       const phi = Math.PI * (Math.sqrt(5) - 1)
       const R   = isMobile ? 340 : 400
       const mediaMeshes: any[] = []
-// テーマに関連するメディアを優先、残りからランダム最大5件を追加
-      const relatedIds   = new Set(keywords.flatMap(kw => kw.sourceItemIds || []))
-      const relatedMedia = mediaItems.filter(m => relatedIds.has(m.id))
-      const randomMedia  = mediaItems.filter(m => !relatedIds.has(m.id)).sort(() => Math.random() - 0.5).slice(0, 5)
-      const selectedMedia = [...relatedMedia, ...randomMedia]
-
-      for (let i = 0; i < selectedMedia.length; i++) {
-        const item = selectedMedia[i]
+      for (let i = 0; i < mediaItems.length; i++) {
+        const item = mediaItems[i]
         try {
           const tex = await loadImageTexture(THREE, item.thumbnailUrl)
           const mat = new THREE.MeshBasicMaterial({ map:tex, transparent:true, depthWrite:false, side:THREE.DoubleSide, opacity:0 })
-          const y   = 1 - ((i + 0.5) / selectedMedia.length) * 2
+          const y   = 1 - ((i + 0.5) / mediaItems.length) * 2
           const rad = Math.sqrt(Math.max(0, 1 - y*y))
           const th  = phi * (i + 50)
           const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat)
@@ -292,7 +310,8 @@ function SynapseInner() {
         meshes.length = 0; origPos.length = 0; animKeys.length = 0; animStart.length = 0
         frameCount = 0
         kws.forEach((kw, idx) => {
-          const kwCanvas = drawKeyword(kw.text, kw.fontKey || 'condensed', dark, fontScale)
+          // モバイルは9文字超を2行に折り返す
+          const kwCanvas = drawKeyword(kw.text, kw.fontKey || 'condensed', dark, fontScale, isMobile)
           const tex = new THREE.CanvasTexture(kwCanvas)
           tex.generateMipmaps = false; tex.minFilter = THREE.LinearFilter
           const mat  = new THREE.MeshBasicMaterial({ map:tex, transparent:true, depthWrite:false, side:THREE.DoubleSide, opacity:0 })
@@ -353,7 +372,7 @@ function SynapseInner() {
 
       // カメラオートパイロット
       const SHOTS_PER_CYCLE = keywords.length + 5
-      let shotCount = 0, fTimer = 0, fDur = isMobile ? 340 : 420
+      let shotCount = 0, fTimer = 0, fDur = isMobile ? 220 : 300
       const dpos = new THREE.Vector3(0, 80, isMobile ? 620 : 520)
       const dtgt = new THREE.Vector3(0, 0, 0)
       const ctgt = new THREE.Vector3(0, 0, 0)
@@ -371,25 +390,26 @@ function SynapseInner() {
           const mi = mediaMeshes[Math.floor(Math.random() * mediaMeshes.length)]
           const p  = mi.position, a = Math.random()*Math.PI*2
           dpos.set(p.x+Math.cos(a)*(isMobile?80:120), p.y+30, p.z+Math.sin(a)*(isMobile?80:120))
-          dtgt.copy(p); fDur=isMobile?300:600; setShotLabel('MEDIA')
+          dtgt.copy(p); fDur=isMobile?180:480; setShotLabel('MEDIA')
           return
         }
         if (r < .35) {
           const a = Math.random()*Math.PI*2
           dpos.set(Math.cos(a)*(isMobile?480:580),(Math.random()-.5)*230,Math.sin(a)*(isMobile?480:580))
-          dtgt.set(0,0,0); fDur=isMobile?320:660; setShotLabel('WIDE')
+          dtgt.set(0,0,0); fDur=isMobile?200:480; setShotLabel('WIDE')
         } else if (r < .65) {
           const p = new THREE.Vector3(kw.posX||0, kw.posY||0, kw.posZ||0)
-          const a = Math.random()*Math.PI*2, el=(Math.random()-.5)*Math.PI*.5
-          const d = (isMobile?28:36)+kw.score*(isMobile?48:62)
-          dpos.set(p.x+Math.cos(a)*Math.cos(el)*d, p.y+Math.sin(el)*d*.5, p.z+Math.sin(a)*Math.cos(el)*d)
-          dtgt.copy(p); fDur=isMobile?320:660; setShotLabel('CLOSE')
+          const a = Math.random()*Math.PI*2, el=(Math.random()-.5)*Math.PI*.3
+          // モバイルは距離を大きめにしてキーワードが画面に収まるように
+          const d = (isMobile?80:36)+kw.score*(isMobile?60:62)
+          dpos.set(p.x+Math.cos(a)*Math.cos(el)*d, p.y+Math.sin(el)*d*.4+( isMobile?20:0), p.z+Math.sin(a)*Math.cos(el)*d)
+          dtgt.copy(p); fDur=isMobile?320:540; setShotLabel('CLOSE')
         } else {
           const p = new THREE.Vector3(kw.posX||0, kw.posY||0, kw.posZ||0)
           const a = Math.random()*Math.PI*2, el=(Math.random()-.5)*Math.PI*.7
           const d = (isMobile?60:75)+kw.score*(isMobile?120:155)
           dpos.set(p.x+Math.cos(a)*Math.cos(el)*d, p.y+Math.sin(el)*d*.48, p.z+Math.sin(a)*Math.cos(el)*d)
-          dtgt.copy(p); fDur=isMobile?300:600; setShotLabel('FLY')
+          dtgt.copy(p); fDur=isMobile?180:480; setShotLabel('FLY')
         }
       }
 
@@ -472,7 +492,7 @@ function SynapseInner() {
   const btnBorder = dark ? 'rgba(90,115,220,0.22)' : 'rgba(60,90,200,0.22)'
 
   return (
-    <div style={{ position:'relative', width:'100vw', height:'100dvh', minHeight:'-webkit-fill-available', background:bgColor, overflow:'hidden' }}>
+    <div style={{ position:'relative', width:'100vw', height:'100vh', background:bgColor, overflow:'hidden' }}>
       <canvas ref={canvasRef} style={{ position:'absolute', inset:0, width:'100%', height:'100%', touchAction:'none' }}/>
 
       {/* ローディング */}
