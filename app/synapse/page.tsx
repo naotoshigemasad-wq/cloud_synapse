@@ -19,38 +19,72 @@ function useIsMobile() {
   return isMobile
 }
 
+// ── フォント定義（10種）────────────────────────────────────────
+// family: Google Fontsのファミリー名（プリロード用）
 const FONT_CONFIG: Record<string, {
-  font: string; weight: string; style: string
+  font: string; family: string; weight: string; style: string
   color: string; shadowColor: string; shadowBlur: number
   letterSpacing: number; alpha: number; outline: boolean
 }> = {
-  ultra:     { font:'"Noto Sans JP",sans-serif',     weight:'900', style:'normal', color:'rgba(255,255,255,0.96)',  shadowColor:'rgba(180,220,255,0.9)', shadowBlur:28, letterSpacing:2,  alpha:0.95, outline:false },
-  condensed: { font:'"Noto Sans JP",sans-serif',     weight:'700', style:'normal', color:'rgba(180,210,255,0.90)', shadowColor:'rgba(100,160,255,0.7)', shadowBlur:18, letterSpacing:-2, alpha:0.88, outline:false },
-  expanded:  { font:'"Noto Sans JP",sans-serif',     weight:'300', style:'normal', color:'rgba(160,200,255,0.85)', shadowColor:'rgba(80,140,255,0.6)',  shadowBlur:14, letterSpacing:6,  alpha:0.85, outline:false },
-  ghost:     { font:'"Noto Sans JP",sans-serif',     weight:'200', style:'normal', color:'rgba(200,220,255,0.30)', shadowColor:'rgba(100,150,255,0.2)', shadowBlur:8,  letterSpacing:4,  alpha:0.35, outline:false },
-  outline:   { font:'"Noto Sans JP",sans-serif',     weight:'700', style:'normal', color:'rgba(0,0,0,0)',          shadowColor:'rgba(130,190,255,0.6)', shadowBlur:0,  letterSpacing:2,  alpha:0.80, outline:true  },
-  italic:    { font:'"Noto Serif JP",Georgia,serif', weight:'400', style:'italic', color:'rgba(220,200,255,0.88)', shadowColor:'rgba(160,100,255,0.7)', shadowBlur:20, letterSpacing:1,  alpha:0.88, outline:false },
-  neon:      { font:'"Noto Sans JP",sans-serif',     weight:'700', style:'normal', color:'rgba(120,240,210,0.95)', shadowColor:'rgba(60,220,180,0.9)',  shadowBlur:32, letterSpacing:3,  alpha:0.92, outline:false },
-  serif:     { font:'"Noto Serif JP",Georgia,serif', weight:'700', style:'normal', color:'rgba(240,220,190,0.88)', shadowColor:'rgba(200,160,80,0.6)',  shadowBlur:16, letterSpacing:2,  alpha:0.88, outline:false },
-  serifL:    { font:'"Noto Serif JP",Georgia,serif', weight:'200', style:'normal', color:'rgba(220,210,200,0.72)', shadowColor:'rgba(180,150,100,0.4)', shadowBlur:10, letterSpacing:5,  alpha:0.75, outline:false },
-  waveFont:  { font:'"Noto Sans JP",sans-serif',     weight:'400', style:'normal', color:'rgba(180,240,255,0.88)', shadowColor:'rgba(80,200,240,0.8)',  shadowBlur:24, letterSpacing:8,  alpha:0.88, outline:false },
+  // 1. モダンゴシック極太（力強い・主張）
+  ultra:     { family:'Noto Sans JP',        font:'"Noto Sans JP",sans-serif',        weight:'900', style:'normal', color:'rgba(255,255,255,0.97)',  shadowColor:'rgba(180,220,255,0.95)', shadowBlur:30, letterSpacing:2,  alpha:0.96, outline:false },
+  // 2. 細ゴシック・広いスペーシング（余白・静寂）
+  expanded:  { family:'Noto Sans JP',        font:'"Noto Sans JP",sans-serif',        weight:'300', style:'normal', color:'rgba(160,200,255,0.82)',  shadowColor:'rgba(80,140,255,0.5)',   shadowBlur:12, letterSpacing:8,  alpha:0.82, outline:false },
+  // 3. ネオン発光（テクノ・デジタル）
+  neon:      { family:'Noto Sans JP',        font:'"Noto Sans JP",sans-serif',        weight:'700', style:'normal', color:'rgba(120,255,200,0.97)',  shadowColor:'rgba(60,255,180,0.95)', shadowBlur:36, letterSpacing:3,  alpha:0.94, outline:false },
+  // 4. アウトライン（輪郭のみ・エレガント）
+  outline:   { family:'Noto Sans JP',        font:'"Noto Sans JP",sans-serif',        weight:'700', style:'normal', color:'rgba(0,0,0,0)',           shadowColor:'rgba(160,210,255,0.75)', shadowBlur:0,  letterSpacing:3,  alpha:0.85, outline:true  },
+  // 5. 游明朝風・太い（高級感・伝統）
+  serif:     { family:'Noto Serif JP',       font:'"Noto Serif JP",serif',            weight:'700', style:'normal', color:'rgba(245,225,195,0.92)',  shadowColor:'rgba(210,170,80,0.7)',  shadowBlur:18, letterSpacing:3,  alpha:0.90, outline:false },
+  // 6. 明朝体・細い（繊細・詩的）
+  serifL:    { family:'Noto Serif JP',       font:'"Noto Serif JP",serif',            weight:'300', style:'normal', color:'rgba(220,215,205,0.78)',  shadowColor:'rgba(180,160,110,0.4)', shadowBlur:8,  letterSpacing:6,  alpha:0.78, outline:false },
+  // 7. しっぽり明朝（温かみ・レトロ）
+  shippori:  { family:'Shippori Mincho',     font:'"Shippori Mincho",serif',          weight:'800', style:'normal', color:'rgba(255,210,160,0.93)',  shadowColor:'rgba(220,140,60,0.75)', shadowBlur:22, letterSpacing:2,  alpha:0.92, outline:false },
+  // 8. クレー（手書き風・やわらか）
+  klee:      { family:'Klee One',            font:'"Klee One",cursive',               weight:'600', style:'normal', color:'rgba(240,200,255,0.90)',  shadowColor:'rgba(180,100,255,0.65)', shadowBlur:20, letterSpacing:1,  alpha:0.88, outline:false },
+  // 9. 禅アンティーク（和風・重厚）
+  zenAntique:{ family:'Zen Antique',         font:'"Zen Antique",serif',              weight:'400', style:'normal', color:'rgba(200,240,220,0.88)',  shadowColor:'rgba(80,180,130,0.65)', shadowBlur:16, letterSpacing:4,  alpha:0.87, outline:false },
+  // 10. ゴースト（幽霊・儚さ）
+  ghost:     { family:'Noto Sans JP',        font:'"Noto Sans JP",sans-serif',        weight:'200', style:'normal', color:'rgba(200,220,255,0.28)',  shadowColor:'rgba(100,150,255,0.18)', shadowBlur:6,  letterSpacing:5,  alpha:0.32, outline:false },
 }
 
 const FONT_CONFIG_LIGHT: Record<string, Partial<typeof FONT_CONFIG[string]>> = {
-  ultra:    { color:'rgba(10,20,80,0.96)',   shadowColor:'rgba(30,60,180,0.6)'  },
-  condensed:{ color:'rgba(20,40,140,0.90)',  shadowColor:'rgba(40,80,200,0.5)'  },
-  expanded: { color:'rgba(30,60,160,0.85)',  shadowColor:'rgba(40,90,200,0.4)'  },
-  ghost:    { color:'rgba(30,60,160,0.25)',  shadowColor:'rgba(40,80,200,0.15)' },
-  outline:  { color:'rgba(0,0,0,0)',         shadowColor:'rgba(30,80,200,0.5)'  },
-  italic:   { color:'rgba(80,30,160,0.85)',  shadowColor:'rgba(100,40,200,0.5)' },
-  neon:     { color:'rgba(0,140,100,0.90)',  shadowColor:'rgba(0,180,130,0.6)'  },
-  serif:    { color:'rgba(100,60,0,0.85)',   shadowColor:'rgba(140,80,0,0.4)'   },
-  serifL:   { color:'rgba(80,50,20,0.70)',   shadowColor:'rgba(120,80,30,0.3)'  },
-  waveFont: { color:'rgba(0,120,160,0.85)',  shadowColor:'rgba(0,160,200,0.5)'  },
+  ultra:     { color:'rgba(10,20,80,0.97)',   shadowColor:'rgba(30,60,180,0.65)'  },
+  expanded:  { color:'rgba(30,60,160,0.82)',  shadowColor:'rgba(40,90,200,0.40)'  },
+  neon:      { color:'rgba(0,150,100,0.95)',  shadowColor:'rgba(0,200,140,0.70)'  },
+  outline:   { color:'rgba(0,0,0,0)',         shadowColor:'rgba(30,80,200,0.60)'  },
+  serif:     { color:'rgba(80,40,0,0.90)',    shadowColor:'rgba(140,80,0,0.50)'   },
+  serifL:    { color:'rgba(60,40,10,0.75)',   shadowColor:'rgba(120,80,20,0.35)'  },
+  shippori:  { color:'rgba(120,60,0,0.90)',   shadowColor:'rgba(180,100,0,0.55)'  },
+  klee:      { color:'rgba(100,30,160,0.88)', shadowColor:'rgba(140,50,200,0.55)' },
+  zenAntique:{ color:'rgba(0,80,50,0.88)',    shadowColor:'rgba(30,130,80,0.55)'  },
+  ghost:     { color:'rgba(30,60,160,0.22)',  shadowColor:'rgba(40,80,200,0.12)'  },
+}
+
+// Google Fontsのプリロード（キャンバス描画前に確実に読み込む）
+async function preloadFonts(): Promise<void> {
+  const link = document.createElement('link')
+  link.rel  = 'stylesheet'
+  link.href = 'https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@200;300;700;900&family=Noto+Serif+JP:wght@300;700&family=Shippori+Mincho:wght@800&family=Klee+One:wght@600&family=Zen+Antique&display=swap'
+  document.head.appendChild(link)
+
+  // FontFace APIで読み込み完了を待つ
+  const fontSpecs = [
+    { family: 'Noto Sans JP',    weight: '900' },
+    { family: 'Noto Sans JP',    weight: '300' },
+    { family: 'Noto Serif JP',   weight: '700' },
+    { family: 'Noto Serif JP',   weight: '300' },
+    { family: 'Shippori Mincho', weight: '800' },
+    { family: 'Klee One',        weight: '600' },
+    { family: 'Zen Antique',     weight: '400' },
+  ]
+  await Promise.allSettled(
+    fontSpecs.map(f => document.fonts.load(`${f.weight} 24px "${f.family}"`))
+  )
 }
 
 function getFontConfig(fontKey: string, dark: boolean) {
-  const base = FONT_CONFIG[fontKey] || FONT_CONFIG.condensed
+  const base = FONT_CONFIG[fontKey] || FONT_CONFIG.ultra
   if (dark) return base
   return { ...base, ...(FONT_CONFIG_LIGHT[fontKey] || {}) }
 }
@@ -248,6 +282,10 @@ function SynapseInner() {
 
     async function buildScene() {
       const THREE = window.THREE
+
+      // フォントを先にロード
+      await preloadFonts()
+
       const cv    = canvasRef.current!
       const W     = window.innerWidth, H = window.innerHeight
       const dpr   = Math.min(devicePixelRatio || 1, 2)
